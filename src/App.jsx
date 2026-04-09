@@ -1,0 +1,1164 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  Search, Star, X, Flame, Droplets, ChevronDown, ChevronUp, ShieldCheck, Check,
+  Globe, MapPin, Zap, Plus, Minus, Truck, CalendarCheck, Package, Beer,
+  Trash2
+} from 'lucide-react';
+
+// =======================
+// 1. УТИЛИТЫ И КОНФИГИ ЦВЕТОВ
+// =======================
+const getContrastYIQ = (hexcolor) => {
+  if (!hexcolor) return '#18181B';
+  const r = parseInt(hexcolor.slice(1, 3), 16);
+  const g = parseInt(hexcolor.slice(3, 5), 16);
+  const b = parseInt(hexcolor.slice(5, 7), 16);
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 140) ? '#000000' : '#FFFFFF';
+};
+
+const hexToRgba = (hex, alpha = 1) => {
+  if (!hex) return `rgba(0,0,0,${alpha})`;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+const LOCATIONS = [
+  { id: 'push', address: 'Пушкинская, 11Б', area: 'ЦЕНТР' },
+  { id: 'holz', address: 'Хользунова, 10Б', area: 'СЕВЕРНЫЙ' }
+];
+
+const ORIGINS = [
+  { id: 'all', name: 'Всё', icon: Beer },
+  { id: 'tap', name: 'На кране', icon: Droplets },
+  { id: 'ru', name: 'Россия (РФ)', icon: MapPin },
+  { id: 'import', name: 'Импорт', icon: Globe },
+  { id: 'promo', name: 'Акции', icon: Zap },
+  { id: 'not_beer', name: 'Не пиво', icon: Package }
+];
+
+const CATEGORY_GROUPS = [
+  {
+    group: 'КЛАССИКА', color: '#e0a526', items: [
+      { id: 'lager', name: 'Lager / Pilsner', color: '#e0a526' },
+      { id: 'wheat', name: 'Wheat / Weisse', color: '#e0a526' },
+      { id: 'pale', name: 'Pale Ale / Blonde', color: '#e0a526' },
+    ]
+  },
+  {
+    group: 'ОХМЕЛЕННОЕ', color: '#d87706', items: [
+      { id: 'ipa', name: 'IPA / DIPA', color: '#d87706' },
+      { id: 'neipa', name: 'NEIPA / Hazy', color: '#d87706' },
+      { id: 'apa', name: 'APA / Session', color: '#d87706' },
+    ]
+  },
+  {
+    group: 'ТЕМНОЕ', color: '#3b2218', items: [
+      { id: 'stout', name: 'Stout / Porter', color: '#3b2218' },
+      { id: 'pastry_stout', name: 'Pastry Stout', color: '#3b2218' },
+      { id: 'dark', name: 'Dark / Brown / Amber', color: '#3b2218' },
+    ]
+  },
+  {
+    group: 'КРЕПКОЕ И ВЫДЕРЖАННОЕ', color: '#6b3a1f', items: [
+      { id: 'ris', name: 'Imperial Stout (RIS)', color: '#6b3a1f' },
+      { id: 'barleywine', name: 'Barleywine / Strong Ale', color: '#6b3a1f' },
+      { id: 'barrel_aged', name: 'Barrel Aged (BA)', color: '#6b3a1f' },
+    ]
+  },
+  {
+    group: 'БЕЛЬГИЯ И ФЕРМЕРСКИЕ', color: '#c2820e', items: [
+      { id: 'belgian', name: 'Belgian Ale', color: '#c2820e' },
+      { id: 'saison', name: 'Saison / Farmhouse', color: '#c2820e' },
+    ]
+  },
+  {
+    group: 'КИСЛОЕ И ДИКОЕ', color: '#ad173c', items: [
+      { id: 'sour', name: 'Sour Ale', color: '#ad173c' },
+      { id: 'smoothie', name: 'Smoothie Sour', color: '#ad173c' },
+      { id: 'wild', name: 'Wild / Lambic', color: '#ad173c' },
+    ]
+  },
+  {
+    group: 'СОЛЁНОЕ И ГАСТРОНОМИЧЕСКОЕ', color: '#c43030', items: [
+      { id: 'gose', name: 'Classic Gose', color: '#c43030' },
+      { id: 'tomato_gose', name: 'Tomato Gose', color: '#c43030' },
+      { id: 'culinary', name: 'Culinary / Soup', color: '#c43030' },
+    ]
+  },
+  {
+    group: 'АЛЬТЕРНАТИВА', color: '#5a8c2a', items: [
+      { id: 'cider', name: 'Cider / Perry', color: '#5a8c2a' },
+      { id: 'mead', name: 'Mead / Melomel', color: '#5a8c2a' },
+      { id: 'fruit_beer', name: 'Fruit Beer / Hard Seltzer', color: '#5a8c2a' },
+    ]
+  },
+  {
+    group: 'БЕЗАЛКОГОЛЬНОЕ', color: '#2d6cb4', items: [
+      { id: 'na', name: 'N/A Beer', color: '#2d6cb4' },
+      { id: 'na_alt', name: 'N/A Alternative', color: '#2d6cb4' },
+    ]
+  },
+];
+const ALL_CATEGORIES = [{ id: 'all_styles', name: 'Любой стиль', color: '#FDE047' }, ...CATEGORY_GROUPS.flatMap(g => g.items)];
+const CATEGORIES = ALL_CATEGORIES;
+
+// =======================
+// 2. БАЗА ДАННЫХ
+// =======================
+const MOCK_ITEMS = [
+  { id: 1, name: 'West Coast Life', brewery: "Salden's", type: 'ipa', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 7.5, ibu: 60, og: 16.5, price: 340, rating: 4.6, image: '', desc: 'Олдскульный West Coast IPA. Мощная хвойно-смолистая горечь и цитрусы.', nutrition: { kcal: 55, p: 0.5, f: 0, c: 4.5 } },
+  { id: 2, name: 'Атомная Прачечная', brewery: 'Jaws', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 7.0, ibu: 101, og: 16, price: 320, rating: 4.8, image: '', desc: 'Легендарная уральская IPA.', nutrition: { kcal: 53, p: 0.6, f: 0, c: 4.0 } },
+  { id: 3, name: 'Rupture', brewery: 'Zagovor', type: 'ipa', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 6.5, ibu: 40, og: 15, price: 380, rating: 4.7, image: '', desc: 'Классический мягкий IPA с двойным сухим охмелением Citra и Mosaic.', nutrition: { kcal: 50, p: 0.4, f: 0, c: 4.2 } },
+  { id: 4, name: 'Punk IPA', brewery: 'BrewDog', type: 'ipa', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 5.4, ibu: 35, og: 12.5, price: 450, rating: 4.5, image: '', desc: 'Шотландская классика.', nutrition: { kcal: 45, p: 0.5, f: 0, c: 3.8 } },
+  { id: 5, name: 'Red Machine', brewery: 'Victory Art Brew', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.9, ibu: 65, og: 16, price: 310, rating: 4.6, image: '', desc: 'Сбалансированный индийский бледный эль.', nutrition: { kcal: 52, p: 0.5, f: 0, c: 4.3 } },
+  { id: 6, name: 'Bowler IPA', brewery: 'Gletcher', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.1, ibu: 70, og: 14, price: 290, rating: 4.4, image: '', desc: 'Английский стиль. Цветочные и земляные оттенки хмеля.', nutrition: { kcal: 48, p: 0.4, f: 0, c: 3.9 } },
+  { id: 7, name: 'Crazy Moose', brewery: 'Konix', type: 'ipa', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.5, ibu: 45, og: 13, price: 250, rating: 4.3, image: '', desc: 'Сессионный APA/IPA с легким телом.', nutrition: { kcal: 42, p: 0.3, f: 0, c: 3.5 } },
+  { id: 8, name: '100 Рентген', brewery: 'Plan B', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 8.0, ibu: 80, og: 18, price: 350, rating: 4.7, image: '', desc: 'Двойной IPA (DIPA). Плотный, крепкий.', nutrition: { kcal: 65, p: 0.7, f: 0, c: 5.5 } },
+  { id: 9, name: 'Lagunitas IPA', brewery: 'Lagunitas', type: 'ipa', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 6.2, ibu: 51, og: 14.5, price: 420, rating: 4.5, image: '', desc: 'Калифорнийский крафт.', nutrition: { kcal: 50, p: 0.5, f: 0, c: 4.1 } },
+  { id: 10, name: 'Space IPA', brewery: 'Gubaha', type: 'ipa', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 6.0, ibu: 50, og: 14, price: 270, rating: 4.2, image: '', desc: 'Питкий IPA на каждый день.', nutrition: { kcal: 46, p: 0.4, f: 0, c: 3.8 } },
+  { id: 11, name: 'Синяя Гусеница', brewery: 'Таркос', type: 'neipa', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 6.6, ibu: 24, og: 15, price: 280, rating: 4.9, image: '', desc: 'Легендарный Vermont IPA.', nutrition: { kcal: 54, p: 0.5, f: 0, c: 4.6 } },
+  { id: 12, name: 'Haze Machine', brewery: 'Zagovor', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 7.0, ibu: 30, og: 16, price: 420, rating: 4.9, image: '', desc: 'Эталонный New England.', nutrition: { kcal: 56, p: 0.6, f: 0, c: 4.8 } },
+  { id: 13, name: 'Puzzle', brewery: 'Stamm', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.5, ibu: 20, og: 15.5, price: 360, rating: 4.7, image: '', desc: 'Монохоп на Citra.', nutrition: { kcal: 52, p: 0.5, f: 0, c: 4.5 } },
+  { id: 14, name: 'Local Dealer', brewery: 'Big Village', type: 'neipa', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 8.0, ibu: 35, og: 18, price: 390, rating: 4.8, image: '', desc: 'Мощный Double NEIPA.', nutrition: { kcal: 68, p: 0.8, f: 0, c: 5.8 } },
+  { id: 15, name: 'Juice & Juice', brewery: 'AF Brew', type: 'neipa', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 15, og: 14, price: 350, rating: 4.6, image: '', desc: 'Максимально сочный пейл-эль.', nutrition: { kcal: 48, p: 0.4, f: 0, c: 4.2 } },
+  { id: 16, name: 'Yellow Cab', brewery: 'Brouwerij', type: 'neipa', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 5.5, ibu: 25, og: 13, price: 480, rating: 4.4, image: '', desc: 'Европейский Hazy IPA.', nutrition: { kcal: 44, p: 0.3, f: 0, c: 3.9 } },
+  { id: 17, name: 'Magic Drop', brewery: 'Paradox', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.8, ibu: 28, og: 16, price: 330, rating: 4.5, image: '', desc: 'Galaxy и Sabro. Оттенки кокоса и персика.', nutrition: { kcal: 55, p: 0.5, f: 0, c: 4.6 } },
+  { id: 18, name: 'Overhype', brewery: 'AF Brew', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 7.5, ibu: 40, og: 17, price: 450, rating: 4.8, image: '', desc: 'Переохмеленный мутный эль.', nutrition: { kcal: 62, p: 0.7, f: 0, c: 5.2 } },
+  { id: 19, name: 'Neon', brewery: 'Bakunin', type: 'neipa', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 6.5, ibu: 30, og: 15, price: 290, rating: 4.3, image: '', desc: 'Мягкий мутный эль.', nutrition: { kcal: 50, p: 0.4, f: 0, c: 4.3 } },
+  { id: 20, name: 'Cloudy Moscow', brewery: 'Zavod', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.2, ibu: 22, og: 14.5, price: 310, rating: 4.4, image: '', desc: 'Свежий и сочный IPA.', nutrition: { kcal: 49, p: 0.4, f: 0, c: 4.1 } },
+  { id: 21, name: 'Guinness Draught', brewery: 'Guinness', type: 'stout', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 4.2, ibu: 45, og: 10, price: 550, rating: 4.5, image: '', desc: 'Ирландский сухой стаут.', nutrition: { kcal: 35, p: 0.3, f: 0, c: 3.0 } },
+  { id: 22, name: 'Lobotomy', brewery: 'AF Brew', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 12.5, ibu: 50, og: 30, price: 1050, rating: 4.95, image: '', desc: 'Русский имперский стаут.', nutrition: { kcal: 95, p: 1.2, f: 0.5, c: 10.5 } },
+  { id: 23, name: 'Milk Stout', brewery: "Salden's", type: 'stout', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 6.0, ibu: 25, og: 16, price: 320, rating: 4.6, image: '', desc: 'Молочный стаут с лактозой.', nutrition: { kcal: 58, p: 0.6, f: 0, c: 5.5 } },
+  { id: 24, name: 'Раскольников', brewery: 'Craft Brew Riots', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 9.5, ibu: 60, og: 22, price: 390, rating: 4.7, image: '', desc: 'Суровый имперский стаут.', nutrition: { kcal: 78, p: 0.9, f: 0, c: 7.2 } },
+  { id: 25, name: 'Black Sails', brewery: 'Victory Art Brew', type: 'stout', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 50, og: 15, price: 310, rating: 4.5, image: '', desc: 'Black IPA / Porter.', nutrition: { kcal: 50, p: 0.5, f: 0, c: 4.3 } },
+  { id: 26, name: 'Достоевский', brewery: 'Brewlok', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 10.0, ibu: 45, og: 24, price: 420, rating: 4.8, image: '', desc: 'Балтийский портер.', nutrition: { kcal: 82, p: 0.8, f: 0, c: 7.5 } },
+  { id: 27, name: 'Дурачок', brewery: 'Jaws', type: 'stout', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.5, ibu: 30, og: 14, price: 280, rating: 4.4, image: '', desc: 'Овсяный стаут.', nutrition: { kcal: 48, p: 0.5, f: 0.2, c: 4.5 } },
+  { id: 28, name: 'Eclipse', brewery: 'FiftyFifty', type: 'stout', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 11.9, ibu: 40, og: 28, price: 1800, rating: 4.9, image: '', desc: 'Культовый имперский стаут.', nutrition: { kcal: 90, p: 1.0, f: 0, c: 9.0 } },
+  { id: 29, name: 'Меланхолия', brewery: 'Bakunin', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 10.5, ibu: 65, og: 25, price: 450, rating: 4.7, image: '', desc: 'Плотный балтийский портер.', nutrition: { kcal: 85, p: 0.9, f: 0, c: 8.0 } },
+  { id: 30, name: 'Motor', brewery: 'Paradox', type: 'stout', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 7.0, ibu: 35, og: 17, price: 330, rating: 4.3, image: '', desc: 'Классический крепкий портер.', nutrition: { kcal: 58, p: 0.6, f: 0, c: 5.2 } },
+  { id: 31, name: 'Доза', brewery: '4Brewers', type: 'sour', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 0, og: 16, price: 340, rating: 4.8, image: '', desc: 'Густое смузи-саур.', nutrition: { kcal: 60, p: 0.5, f: 0, c: 8.5 } },
+  { id: 32, name: 'Ищу Человека', brewery: 'Jaws', type: 'sour', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.65, ibu: 0, og: 13.5, price: 310, rating: 4.7, image: '', desc: 'Фландрийский красный эль.', nutrition: { kcal: 45, p: 0.4, f: 0, c: 4.2 } },
+  { id: 33, name: 'Sour Flow', brewery: 'Panzer', type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 4.2, ibu: 10, og: 11, price: 290, rating: 4.5, image: '', desc: 'Саур с малиной и ежевикой.', nutrition: { kcal: 38, p: 0.3, f: 0, c: 4.0 } },
+  { id: 34, name: 'Berry Blood', brewery: 'Zavod', type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 12, price: 320, rating: 4.6, image: '', desc: 'Кислая вишня и смородина.', nutrition: { kcal: 42, p: 0.4, f: 0, c: 4.5 } },
+  { id: 35, name: 'Acid Reach', brewery: 'Stamm', type: 'sour', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.5, ibu: 0, og: 15, price: 380, rating: 4.8, image: '', desc: 'Мощный саур с персиком.', nutrition: { kcal: 55, p: 0.5, f: 0, c: 6.0 } },
+  { id: 36, name: 'Love Memory', brewery: 'Zagovor', type: 'sour', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.5, ibu: 0, og: 14, price: 350, rating: 4.7, image: '', desc: 'Кисло-сладкий эль с клубникой.', nutrition: { kcal: 48, p: 0.4, f: 0, c: 5.5 } },
+  { id: 37, name: 'Neon Fields', brewery: 'Paradox', type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 0, og: 15, price: 360, rating: 4.6, image: '', desc: 'Смузи с маракуйей и гуавой.', nutrition: { kcal: 56, p: 0.5, f: 0, c: 7.0 } },
+  { id: 38, name: 'Duchesse de Bourgogne', brewery: 'Verhaeghe', type: 'sour', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 6.2, ibu: 11, og: 16, price: 650, rating: 4.9, image: '', desc: 'Бельгийская классика.', nutrition: { kcal: 50, p: 0.4, f: 0, c: 5.2 } },
+  { id: 39, name: 'Passion', brewery: "Salden's", type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 300, rating: 4.5, image: '', desc: 'Чистый кислый эль с маракуйей.', nutrition: { kcal: 44, p: 0.4, f: 0, c: 4.8 } },
+  { id: 40, name: 'Crimson Flow', brewery: 'Panzer', type: 'sour', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 4.5, ibu: 10, og: 12, price: 270, rating: 4.3, image: '', desc: 'Летний саур с гранатом и вишней.', nutrition: { kcal: 40, p: 0.3, f: 0, c: 4.2 } },
+  { id: 41, name: 'Зависимость', brewery: '4Brewers', type: 'gose', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 320, rating: 4.8, image: '', desc: 'Знаменитое томатное гозе.', nutrition: { kcal: 46, p: 0.5, f: 0, c: 5.0 } },
+  { id: 42, name: 'Salty Dog', brewery: 'Bakunin', type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 10, og: 13, price: 290, rating: 4.5, image: '', desc: 'Классический лейпцигский гозе.', nutrition: { kcal: 40, p: 0.4, f: 0, c: 4.0 } },
+  { id: 43, name: 'Чили Томат', brewery: 'Таркос', type: 'gose', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 4.5, ibu: 0, og: 12, price: 260, rating: 4.6, image: '', desc: 'Острая версия томатного гозе.', nutrition: { kcal: 42, p: 0.6, f: 0, c: 4.5 } },
+  { id: 44, name: 'Pizza Boy', brewery: 'Zavod', type: 'gose', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 5.5, ibu: 0, og: 14, price: 340, rating: 4.7, image: '', desc: 'Гозе со вкусом пиццы Маргарита.', nutrition: { kcal: 48, p: 0.5, f: 0, c: 5.2 } },
+  { id: 45, name: 'Bloody Mary', brewery: "Salden's", type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 310, rating: 4.5, image: '', desc: 'Гозе с сельдереем и табаско.', nutrition: { kcal: 45, p: 0.5, f: 0, c: 5.0 } },
+  { id: 46, name: 'Michelada', brewery: 'Panzer', type: 'gose', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 4.8, ibu: 0, og: 12.5, price: 300, rating: 4.6, image: '', desc: 'Мексиканский коктейль в гозе.', nutrition: { kcal: 43, p: 0.4, f: 0, c: 4.6 } },
+  { id: 47, name: 'Gazpacho', brewery: 'Paradox', type: 'gose', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 5.5, ibu: 0, og: 14, price: 330, rating: 4.7, image: '', desc: 'Суп-гозе. Огурец, перец, чеснок.', nutrition: { kcal: 45, p: 0.6, f: 0, c: 4.8 } },
+  { id: 48, name: 'Ocean', brewery: 'Stamm', type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 350, rating: 4.4, image: '', desc: 'Фруктовый гозе с гуавой.', nutrition: { kcal: 48, p: 0.3, f: 0, c: 6.0 } },
+  { id: 49, name: 'Sea Salt', brewery: 'Jaws', type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 4.5, ibu: 12, og: 11, price: 280, rating: 4.3, image: '', desc: 'Пшеничное пиво с солью.', nutrition: { kcal: 38, p: 0.4, f: 0, c: 3.8 } },
+  { id: 50, name: 'Spicy Tomato', brewery: 'Big Village', type: 'gose', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 6.0, ibu: 0, og: 15, price: 360, rating: 4.8, image: '', desc: 'Острое томатное гозе.', nutrition: { kcal: 50, p: 0.7, f: 0, c: 5.5 } },
+  { id: 51, name: 'Хамовники Пильзенское', brewery: 'МПК', type: 'lager', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 4.8, ibu: 35, og: 12, price: 190, rating: 4.5, image: '', desc: 'Идеальный российский пилснер.', nutrition: { kcal: 42, p: 0.4, f: 0, c: 3.5 } },
+  { id: 52, name: 'Pilsner Urquell', brewery: 'Plzeňský Prazdroj', type: 'lager', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 4.4, ibu: 40, og: 11.8, price: 450, rating: 4.9, image: '', desc: 'Отец всех пилснеров.', nutrition: { kcal: 40, p: 0.4, f: 0, c: 3.3 } },
+  { id: 53, name: 'Жигули Барное', brewery: 'МПК', type: 'lager', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 4.9, ibu: 20, og: 12, price: 150, rating: 4.2, image: '', desc: 'Классический светлый лагер.', nutrition: { kcal: 43, p: 0.4, f: 0, c: 3.8 } },
+  { id: 54, name: 'Spaten München', brewery: 'Spaten', type: 'lager', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 5.2, ibu: 21, og: 11.7, price: 420, rating: 4.6, image: '', desc: 'Мюнхенский хеллес.', nutrition: { kcal: 45, p: 0.4, f: 0, c: 3.5 } },
+  { id: 55, name: 'Венское', brewery: 'Таркос', type: 'lager', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 4.5, ibu: 15, og: 11, price: 210, rating: 4.3, image: '', desc: 'Янтарный лагер в венском стиле.', nutrition: { kcal: 41, p: 0.4, f: 0, c: 3.6 } },
+  { id: 56, name: 'Krombacher Pils', brewery: 'Krombacher', type: 'lager', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 4.8, ibu: 24, og: 11.2, price: 380, rating: 4.5, image: '', desc: 'Немецкий пилснер.', nutrition: { kcal: 39, p: 0.4, f: 0, c: 3.0 } },
+  { id: 57, name: 'Stella Artois', brewery: 'Stella Artois', type: 'lager', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 24, og: 11.5, price: 320, rating: 4.2, image: '', desc: 'Бельгийский светлый лагер.', nutrition: { kcal: 40, p: 0.4, f: 0, c: 3.2 } },
+  { id: 58, name: 'Tsingtao', brewery: 'Tsingtao', type: 'lager', origin: 'import', onTap: false, isPromo: true, isNotBeer: false, abv: 4.7, ibu: 15, og: 11, price: 280, rating: 4.1, image: '', desc: 'Китайский лагер.', nutrition: { kcal: 38, p: 0.3, f: 0, c: 3.1 } },
+  { id: 59, name: 'Kellerbier', brewery: "Salden's", type: 'lager', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 4.5, ibu: 20, og: 12, price: 260, rating: 4.4, image: '', desc: 'Нефильтрованный лагер.', nutrition: { kcal: 43, p: 0.5, f: 0, c: 3.5 } },
+  { id: 60, name: 'Budweiser', brewery: 'Budweiser', type: 'lager', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 12, og: 11, price: 250, rating: 4.0, image: '', desc: 'Американский легкий лагер.', nutrition: { kcal: 35, p: 0.2, f: 0, c: 2.8 } },
+  { id: 61, name: 'Zero Point', brewery: 'Jaws', type: 'na', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 0.5, ibu: 20, og: 5, price: 290, rating: 4.7, image: '', desc: 'Безалкогольный эль.', nutrition: { kcal: 22, p: 0.2, f: 0, c: 4.5 } },
+  { id: 62, name: "Don't Worry Baby", brewery: 'Jaws', type: 'na', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 0.5, ibu: 30, og: 6, price: 310, rating: 4.8, image: '', desc: 'Безалкогольный APA.', nutrition: { kcal: 25, p: 0.3, f: 0, c: 5.0 } },
+  { id: 63, name: 'Clausthaler Original', brewery: 'Binding', type: 'na', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 0.4, ibu: 25, og: 6, price: 350, rating: 4.6, image: '', desc: 'Безалкогольный пилснер.', nutrition: { kcal: 26, p: 0.2, f: 0, c: 5.6 } },
+  { id: 64, name: 'Балтика 0', brewery: 'Балтика', type: 'na', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 0.5, ibu: 10, og: 5, price: 120, rating: 4.0, image: '', desc: 'Самое популярное б/а пиво.', nutrition: { kcal: 30, p: 0.3, f: 0, c: 6.5 } },
+  { id: 65, name: 'Stella Artois N.A.', brewery: 'Stella Artois', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.0, ibu: 15, og: 5, price: 250, rating: 4.2, image: '', desc: 'Безалкогольный бельгийский лагер.', nutrition: { kcal: 18, p: 0.2, f: 0, c: 4.0 } },
+  { id: 66, name: 'Heineken 0.0', brewery: 'Heineken', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.0, ibu: 14, og: 5, price: 230, rating: 4.3, image: '', desc: 'Идеальный ноль.', nutrition: { kcal: 21, p: 0.2, f: 0, c: 4.8 } },
+  { id: 67, name: 'Hoegaarden 0.0', brewery: 'Hoegaarden', type: 'na', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 0.0, ibu: 10, og: 6, price: 260, rating: 4.5, image: '', desc: 'Безалкогольный витбир.', nutrition: { kcal: 27, p: 0.3, f: 0, c: 6.0 } },
+  { id: 68, name: 'Amstel 0.0 Natur', brewery: 'Amstel', type: 'na', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 0.0, ibu: 12, og: 5, price: 150, rating: 4.1, image: '', desc: 'Безалкогольный напиток.', nutrition: { kcal: 20, p: 0.2, f: 0, c: 4.5 } },
+  { id: 69, name: 'Weihenstephaner N/A', brewery: 'Weihenstephan', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.5, ibu: 14, og: 6, price: 420, rating: 4.8, image: '', desc: 'Эталонное безалкогольное пшеничное.', nutrition: { kcal: 25, p: 0.4, f: 0, c: 5.2 } },
+  { id: 70, name: "Maisel's Weisse Alkoholfrei", brewery: 'Maisel', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.4, ibu: 12, og: 6, price: 400, rating: 4.7, image: '', desc: 'Баварское безалкогольное пшеничное.', nutrition: { kcal: 23, p: 0.4, f: 0, c: 4.9 } },
+  { id: 101, name: 'Футболка Prime', brewery: 'Prime Store', type: 'merch', origin: 'not_beer', onTap: false, isPromo: false, isNotBeer: true, price: 1800, rating: 5.0, image: '', desc: 'Плотный хлопок 100%.' },
+  { id: 102, name: 'Тюльпан Prime', brewery: 'Prime Glass', type: 'merch', origin: 'not_beer', onTap: false, isPromo: false, isNotBeer: true, price: 600, rating: 4.9, image: '', desc: 'Идеальный бокал для IPA.' },
+  { id: 103, name: 'Худи "Hop Head"', brewery: 'Prime Store', type: 'merch', origin: 'not_beer', onTap: false, isPromo: true, isNotBeer: true, price: 3500, rating: 4.8, image: '', desc: 'Оверсайз-худи с вышивкой хмеля.' }
+];
+
+// =======================
+// 3. ВЕКТОРНЫЕ ЗАГЛУШКИ
+// =======================
+const BeerCanIcon = ({ color, label, className }) => (
+  <svg viewBox="0 0 100 200" className={className} preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <linearGradient id={`canGrad-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#d4d4d8" /><stop offset="15%" stopColor="#ffffff" /><stop offset="85%" stopColor="#a1a1aa" /><stop offset="100%" stopColor="#71717a" />
+      </linearGradient>
+      <linearGradient id={`labelGrad-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor={color} /><stop offset="15%" stopColor="#ffffff" stopOpacity="0.3" /><stop offset="85%" stopColor="#000000" stopOpacity="0.1" /><stop offset="100%" stopColor="#000000" stopOpacity="0.4" />
+      </linearGradient>
+    </defs>
+    <rect x="25" y="15" width="50" height="8" rx="2" fill="#a1a1aa" />
+    <rect x="25" y="15" width="50" height="8" rx="2" fill={`url(#canGrad-${label})`} opacity="0.5" />
+    <path d="M22 23 Q 50 28 78 23 L80 177 Q 50 182 20 177 Z" fill={`url(#canGrad-${label})`} />
+    <path d="M21 50 L79 50 L80 150 L20 150 Z" fill={color} />
+    <path d="M21 50 L79 50 L80 150 L20 150 Z" fill={`url(#labelGrad-${label})`} />
+    <text x="50" y="110" fontFamily="Russo One, Montserrat, sans-serif" fontSize="24" fontWeight="400" fill="#ffffff" textAnchor="middle" transform="rotate(-90 50 100)" letterSpacing="4">{label}</text>
+    <path d="M20 177 Q 50 185 80 177 L76 185 Q 50 190 24 185 Z" fill="#71717a" />
+  </svg>
+);
+
+const BeerBottleIcon = ({ bottleColor, labelColor, label, className }) => (
+  <svg viewBox="0 0 100 200" className={className} preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <linearGradient id={`bottleGrad-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#2b1408" /><stop offset="20%" stopColor={bottleColor} /><stop offset="80%" stopColor="#1a0a03" /><stop offset="100%" stopColor="#0d0401" />
+      </linearGradient>
+      <linearGradient id={`glassReflect-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="5%" stopColor="#ffffff" stopOpacity="0.5" /><stop offset="15%" stopColor="#ffffff" stopOpacity="0" />
+      </linearGradient>
+    </defs>
+    <rect x="40" y="5" width="20" height="7" rx="1" fill="#eab308" />
+    <path d="M43 12 L57 12 L60 60 L40 60 Z" fill={`url(#bottleGrad-${label})`} />
+    <path d="M43 12 L57 12 L60 60 L40 60 Z" fill={`url(#glassReflect-${label})`} />
+    <path d="M40 60 Q 75 65 80 100 L80 190 Q 50 198 20 190 L20 100 Q 25 65 40 60 Z" fill={`url(#bottleGrad-${label})`} />
+    <path d="M40 60 Q 75 65 80 100 L80 190 Q 50 198 20 190 L20 100 Q 25 65 40 60 Z" fill={`url(#glassReflect-${label})`} />
+    <rect x="25" y="110" width="50" height="55" fill={labelColor} rx="3" />
+    <rect x="25" y="110" width="50" height="55" fill="#000000" opacity="0.2" rx="3" />
+    <circle cx="50" cy="137" r="15" fill="#ffffff" opacity="0.9" />
+    <text x="50" y="142" fontFamily="Russo One, Montserrat, sans-serif" fontSize="12" fontWeight="400" fill="#000000" textAnchor="middle">{label}</text>
+  </svg>
+);
+
+const ItemImage = ({ item, className }) => {
+  if (item.isNotBeer) return <Package size={48} className={`text-white/80 drop-shadow-lg ${className}`} />;
+  const isCan = ['neipa', 'sour', 'gose', 'na', 'lager'].includes(item.type);
+  const cat = CATEGORIES.find(c => c.id === item.type);
+  const color = cat ? cat.color : '#FDE047';
+  let label = 'BEER';
+  if (item.type === 'neipa') label = 'HAZY';
+  if (item.type === 'ipa') label = 'IPA';
+  if (item.type === 'stout') label = 'STOUT';
+  if (item.type === 'na') label = 'ZERO';
+  if (item.type === 'lager') label = 'LAGER';
+  if (item.type === 'sour') label = 'SOUR';
+  if (item.type === 'gose') label = 'GOSE';
+  if (isCan) return <BeerCanIcon color={color} label={label} className={className} />;
+  const bottleColor = item.type === 'stout' ? '#18181B' : '#8B4513';
+  return <BeerBottleIcon bottleColor={bottleColor} labelColor={color} label={label} className={className} />;
+};
+
+// =======================
+// 4. ПУЗЫРЬКИ
+// =======================
+const BeerBubblesCanvas = () => {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const setSize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    setSize();
+    window.addEventListener('resize', setSize);
+    // Пузыри живут в "мировых" координатах — worldY отсчитывается от 0 (верх контента)
+    // и идёт до очень большого числа. Каждый пузырь плывёт вверх в мировых координатах.
+    // На экране рисуем только те, что попадают в viewport с учётом scrollTop.
+    const WORLD_HEIGHT = 20000;
+    const bubbles = Array.from({ length: 600 }).map(() => ({
+      x: Math.random() * window.innerWidth,
+      worldY: Math.random() * WORLD_HEIGHT,
+      size: Math.random() * 4 + 1.5,
+      baseSize: 0,
+      speed: Math.random() * 0.4 + 0.1,
+      drift: Math.random() * 0.5,
+      phase: Math.random() * Math.PI * 2,
+      opacity: Math.random() * 0.35 + 0.1,
+      popping: false,
+      popFrame: 0,
+    }));
+    bubbles.forEach(b => { b.baseSize = b.size; });
+    let animId;
+    const main = canvas.closest('main') || document.querySelector('main');
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const scrollTop = main ? main.scrollTop : 0;
+      const viewTop = scrollTop - 40;
+      const viewBottom = scrollTop + canvas.height + 40;
+      bubbles.forEach(b => {
+        b.worldY -= b.speed;
+        b.x += Math.sin(b.phase) * (b.drift * 0.1);
+        b.phase += 0.012;
+        if (b.worldY < -40) { b.worldY = WORLD_HEIGHT; b.x = Math.random() * canvas.width; }
+        if (b.x < -20) b.x = canvas.width + 20;
+        if (b.x > canvas.width + 20) b.x = -20;
+        if (b.worldY >= viewTop && b.worldY <= viewBottom) {
+          const screenY = b.worldY - scrollTop;
+          const waveLine = 270;
+          // Пузырь долетел до волны — начинаем лопаться
+          if (screenY < waveLine && !b.popping) {
+            b.popping = true;
+            b.popFrame = 0;
+          }
+          if (b.popping) {
+            b.popFrame++;
+            const popDuration = 15;
+            const t = b.popFrame / popDuration;
+            if (t >= 1) {
+              b.worldY = WORLD_HEIGHT; b.x = Math.random() * canvas.width;
+              b.popping = false; b.popFrame = 0; b.size = b.baseSize;
+              return;
+            }
+            // Рисуем лопанье только ниже линии волны
+            const popSize = b.baseSize * (1 + t * 1.2);
+            const drawY = Math.max(screenY, waveLine);
+            const popAlpha = b.opacity * (1 - t);
+            ctx.strokeStyle = `rgba(255, 255, 255, ${popAlpha})`;
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.arc(b.x, drawY, popSize, 0, Math.PI * 2);
+            ctx.stroke();
+            return;
+          }
+          // Не рисовать пузырь выше волны
+          if (screenY < waveLine) return;
+          ctx.fillStyle = `rgba(255, 255, 255, ${b.opacity})`;
+          ctx.beginPath();
+          ctx.arc(b.x, screenY, b.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      animId = requestAnimationFrame(animate);
+    };
+    animId = requestAnimationFrame(animate);
+    return () => { window.removeEventListener('resize', setSize); cancelAnimationFrame(animId); };
+  }, []);
+  return <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 29 }} />;
+};
+
+// =======================
+// 4b. ПУЗЫРЬКИ В ПЕНЕ (хедер)
+// =======================
+const FoamBubblesCanvas = () => {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const parent = canvas.parentElement;
+    const setSize = () => {
+      canvas.width = parent.offsetWidth;
+      canvas.height = parent.offsetHeight;
+    };
+    setSize();
+    const ro = new ResizeObserver(setSize);
+    ro.observe(parent);
+    const respawn = (b) => {
+      b.x = Math.random() * canvas.width;
+      b.y = Math.random() * canvas.height;
+      b.size = Math.random() * 10 + 5;
+      b.maxSize = b.size;
+      b.speedX = (Math.random() - 0.5) * 0.6;
+      b.speedY = (Math.random() - 0.5) * 0.4 - 0.15;
+      b.phase = Math.random() * Math.PI * 2;
+      b.opacity = Math.random() * 0.5 + 0.2;
+      b.life = 0;
+      b.maxLife = Math.random() * 300 + 200;
+      b.popping = false;
+      b.popFrame = 0;
+    };
+    const bubbles = Array.from({ length: 50 }).map(() => {
+      const b = {};
+      respawn(b);
+      b.life = Math.random() * b.maxLife;
+      return b;
+    });
+    let animationId;
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      bubbles.forEach(b => {
+        b.life++;
+        if (b.popping) {
+          b.popFrame++;
+          const popProgress = b.popFrame / 12;
+          const popSize = b.maxSize * (1 + popProgress * 0.6);
+          const popOpacity = b.opacity * (1 - popProgress);
+          if (popProgress >= 1) { respawn(b); return; }
+          ctx.strokeStyle = `rgba(255, 255, 255, ${popOpacity})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, popSize, 0, Math.PI * 2);
+          ctx.stroke();
+          return;
+        }
+        if (b.life > b.maxLife) { b.popping = true; return; }
+        b.x += b.speedX + Math.sin(b.phase) * 0.3;
+        b.y += b.speedY;
+        b.phase += 0.02;
+        if (b.x < -10 || b.x > canvas.width + 10 || b.y < -10 || b.y > canvas.height - 20) { respawn(b); return; }
+        const fadeIn = Math.min(b.life / 30, 1);
+        const fadeOut = Math.min((b.maxLife - b.life) / 30, 1);
+        const alpha = b.opacity * fadeIn * fadeOut;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+      animationId = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => { ro.disconnect(); cancelAnimationFrame(animationId); };
+  }, []);
+  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-[1] opacity-80" />;
+};
+
+// =======================
+// 5. ОСНОВНОЙ КОМПОНЕНТ
+// =======================
+export default function App() {
+  const [ageVerified, setAgeVerified] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [activeLocation, setActiveLocation] = useState(LOCATIONS[0]);
+  const [activeOrigin, setActiveOrigin] = useState(ORIGINS[0]);
+  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [closingDetail, setClosingDetail] = useState(false);
+  const [showLocationSheet, setShowLocationSheet] = useState(false);
+  const [showCategorySheet, setShowCategorySheet] = useState(false);
+  const [showOriginSheet, setShowOriginSheet] = useState(false);
+  const [showCart, setShowCart] = useState(false);
+  const [cartItems, setCartItems] = useState([]);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchTerm, setActiveSearchTerm] = useState("");
+  const [showStory, setShowStory] = useState(false);
+  const [storyRead, setStoryRead] = useState(false);
+  const [closingSheet, setClosingSheet] = useState(null);
+  const [waveAnimating, setWaveAnimating] = useState(false);
+  const headerRef = useRef(null);
+  const isStyleFilterDisabled = activeOrigin?.id === 'not_beer';
+
+  const accentColor = useMemo(() => {
+    if (activeOrigin?.id === 'not_beer') return '#FDE047';
+    return activeCategory.id === 'all_styles' ? '#FDE047' : activeCategory.color;
+  }, [activeCategory, activeOrigin]);
+  const accentContrast = getContrastYIQ(accentColor);
+  const isStout = activeCategory.id === 'stout';
+
+  const currentItems = useMemo(() => {
+    if (!activeOrigin) return [];
+    let result = MOCK_ITEMS;
+    if (activeOrigin.id === 'not_beer') {
+      result = result.filter(item => item.isNotBeer);
+    } else {
+      result = result.filter(item => !item.isNotBeer);
+      if (activeOrigin.id === 'ru') result = result.filter(b => b.origin === 'ru');
+      if (activeOrigin.id === 'import') result = result.filter(b => b.origin === 'import');
+      if (activeOrigin.id === 'tap') result = result.filter(b => b.onTap);
+      if (activeOrigin.id === 'promo') result = result.filter(b => b.isPromo);
+      if (activeCategory && activeCategory.id !== 'all_styles') {
+        result = result.filter(item => item.type === activeCategory.id);
+      }
+    }
+    if (activeSearchTerm.trim()) {
+      const term = activeSearchTerm.toLowerCase();
+      result = result.filter(item => item.name.toLowerCase().includes(term) || item.brewery.toLowerCase().includes(term));
+    }
+    if (sortConfig.key && sortConfig.direction) {
+      result = [...result].sort((a, b) => sortConfig.direction === 'desc' ? b[sortConfig.key] - a[sortConfig.key] : a[sortConfig.key] - b[sortConfig.key]);
+    }
+    return result;
+  }, [activeOrigin, activeCategory, sortConfig, activeSearchTerm]);
+
+  const cartTotalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const cartTotalPrice = cartItems.reduce((sum, item) => sum + (item.item.price * item.quantity), 0);
+
+  const updateCart = useCallback((e, item, delta) => {
+    if (e) e.stopPropagation();
+    setCartItems(prev => {
+      const existing = prev.find(c => c.item.id === item.id);
+      if (!existing && delta > 0) return [...prev, { item, quantity: 1 }];
+      if (existing) {
+        const newQty = existing.quantity + delta;
+        if (newQty <= 0) return prev.filter(c => c.item.id !== item.id);
+        return prev.map(c => c.item.id === item.id ? { ...c, quantity: newQty } : c);
+      }
+      return prev;
+    });
+  }, []);
+
+  const getQty = (itemId) => cartItems.find(c => c.item.id === itemId)?.quantity || 0;
+
+  const closeDetail = useCallback(() => {
+    setClosingDetail(true);
+    setTimeout(() => { setSelectedItem(null); setClosingDetail(false); }, 300);
+  }, []);
+
+  const closeSheet = useCallback((sheetName, setter) => {
+    setClosingSheet(sheetName);
+    setTimeout(() => { setter(false); setClosingSheet(null); }, 300);
+  }, []);
+
+  const handleFilterChange = (setter, value, resetCategory = false) => {
+    setter(false);
+    setIsTransitioning(true);
+    setTimeout(() => {
+      if (resetCategory) setActiveCategory(CATEGORIES[0]);
+      value();
+      setIsTransitioning(false);
+    }, 300);
+  };
+
+  // Pour animation on style change
+  const prevAccentRef = useRef(accentColor);
+  const [fillColor, setFillColor] = useState(null);
+  const [holdBgColor, setHoldBgColor] = useState(accentColor);
+  const [pourTransform, setPourTransform] = useState('translateY(105%)');
+  const [isPouring, setIsPouring] = useState(false);
+
+  useEffect(() => {
+    if (prevAccentRef.current !== accentColor) {
+      setHoldBgColor(prevAccentRef.current);
+      setFillColor(accentColor);
+      setPourTransform('translateY(105%)');
+      setIsPouring(false);
+      setWaveAnimating(true);
+
+      let targetY = 0;
+      if (headerRef.current) {
+        const rect = headerRef.current.getBoundingClientRect();
+        targetY = Math.max(0, rect.bottom + 3); // Align exact bottom of the header wave
+      }
+
+      // Next frame to avoid React batching
+      let frame1, frame2;
+      frame1 = requestAnimationFrame(() => {
+        frame2 = requestAnimationFrame(() => {
+          setIsPouring(true);
+          setPourTransform(`translateY(${targetY}px)`);
+        });
+      });
+
+      // The pour reaches the header smoothly in 1.4s
+      const timerBg = setTimeout(() => {
+        setHoldBgColor(accentColor); // smoothly background switches 
+      }, 1400);
+
+      const timerClean = setTimeout(() => {
+        setWaveAnimating(false);
+        setPourTransform('translateY(105%)');
+        setIsPouring(false);
+      }, 2500);
+
+      prevAccentRef.current = accentColor;
+      return () => {
+        clearTimeout(timerBg);
+        clearTimeout(timerClean);
+        cancelAnimationFrame(frame1);
+        cancelAnimationFrame(frame2);
+      };
+    }
+  }, [accentColor]);
+
+  const displayBgColor = holdBgColor;
+
+  return (
+    <div className="relative w-full h-[100dvh] font-sans text-zinc-900 select-none overflow-x-hidden transition-colors duration-1000" style={{ backgroundColor: displayBgColor, maxWidth: '100vw' }}>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&family=Russo+One&display=swap');
+        @font-face { font-family: 'TD Ciryulnik'; src: url('/fonts/td-ciryulnik.woff2') format('woff'); font-display: swap; }
+        body { font-family: 'Montserrat', sans-serif; background: #000; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
+        html, body { overflow-x: hidden; width: 100%; max-width: 100vw; }
+        .font-logo { font-family: 'TD Ciryulnik', 'Russo One', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
+        @keyframes float-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes wave-smooth { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        @keyframes slide-up-glass { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes slide-down-glass { from { transform: translateY(0); } to { transform: translateY(100%); } }
+        @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes foam-drift { 0% { transform: translateX(0) translateY(0); } 50% { transform: translateX(-3px) translateY(1px); } 100% { transform: translateX(0) translateY(0); } }
+        @keyframes beer-rise { 0% { transform: translateY(105%); } 15% { transform: translateY(80%); } 30% { transform: translateY(55%); } 45% { transform: translateY(35%); } 60% { transform: translateY(18%); } 75% { transform: translateY(6%); } 90% { transform: translateY(1%); } 100% { transform: translateY(0); } }
+        @keyframes surface-wobble { 0% { transform: translateX(0%) scaleY(3.5); } 25% { transform: translateX(-12.5%) scaleY(2.8); } 50% { transform: translateX(-25%) scaleY(2); } 75% { transform: translateX(-37.5%) scaleY(1.3); } 100% { transform: translateX(-50%) scaleY(1); } }
+        @keyframes foam-rise { 0% { transform: translateY(0) scale(0.4); opacity: 0; } 15% { transform: translateY(-8px) scale(1.1); opacity: 0.7; } 40% { transform: translateY(-25px) scale(1); opacity: 0.6; } 70% { transform: translateY(-50px) scale(0.85); opacity: 0.35; } 100% { transform: translateY(-75px) scale(0.5); opacity: 0; } }
+        @keyframes bubble-drift { 0% { transform: translate(0,0) scale(0.3); opacity: 0; } 20% { transform: translate(5px,-12px) scale(1.2); opacity: 0.65; } 50% { transform: translate(-3px,-35px) scale(0.9); opacity: 0.5; } 80% { transform: translate(8px,-55px) scale(0.6); opacity: 0.2; } 100% { transform: translate(4px,-70px) scale(0.3); opacity: 0; } }
+        @keyframes foam-head { 0% { transform: scaleY(0); opacity: 0; } 60% { transform: scaleY(0); opacity: 0; } 75% { transform: scaleY(1.3); opacity: 0.5; } 90% { transform: scaleY(0.9); opacity: 0.35; } 100% { transform: scaleY(1); opacity: 0.25; } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar {-ms-overflow-style: none; scrollbar-width: none; }
+        *::-webkit-scrollbar { display: none; }
+        * { scrollbar-width: none; }
+        .foam-bg {
+          background:
+            radial-gradient(ellipse 8px 6px at 20% 30%, rgba(255,255,255,0.6) 0%, transparent 100%),
+            radial-gradient(ellipse 5px 4px at 50% 15%, rgba(255,255,255,0.5) 0%, transparent 100%),
+            radial-gradient(ellipse 7px 5px at 75% 45%, rgba(255,255,255,0.4) 0%, transparent 100%),
+            radial-gradient(ellipse 4px 3px at 35% 60%, rgba(255,255,255,0.35) 0%, transparent 100%),
+            radial-gradient(ellipse 6px 5px at 85% 20%, rgba(255,255,255,0.45) 0%, transparent 100%),
+            radial-gradient(ellipse 9px 7px at 10% 70%, rgba(255,255,255,0.3) 0%, transparent 100%),
+            radial-gradient(ellipse 3px 3px at 60% 75%, rgba(255,255,255,0.5) 0%, transparent 100%),
+            radial-gradient(ellipse 5px 4px at 45% 40%, rgba(255,255,255,0.4) 0%, transparent 100%),
+            linear-gradient(180deg, #FFF8E7 0%, #F5E6C8 40%, #EDD9AB 100%);
+          animation: foam-drift 4s ease-in-out infinite;
+        }
+        .liquid-glass {
+          background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 100%);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          border-top: 1px solid rgba(255,255,255,0.4);
+          border-left: 1px solid rgba(255,255,255,0.4);
+          border-right: 1px solid rgba(255,255,255,0.1);
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.08), inset 0 1px 1px rgba(255,255,255,0.3);
+        }
+      `}} />
+
+      {!ageVerified && (
+        <div className="fixed inset-0 z-[500] flex flex-col items-center justify-center px-6">
+          {/* Непрозрачный пенный фон */}
+          <div className="absolute inset-0 bg-[#EDD9AB]" />
+          <div className="absolute inset-0 foam-bg" style={{ animation: 'none' }} />
+          {/* Стекломорфизм контейнер */}
+          <div className="relative z-10 flex flex-col items-center w-full max-w-[340px] p-8 pt-12 pb-10 rounded-[32px]"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.3) 100%)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1.5px solid rgba(255,255,255,0.5)',
+              boxShadow: 'inset 0 1px 3px rgba(255,255,255,0.6), inset 0 -1px 3px rgba(0,0,0,0.03), 0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04)',
+            }}>
+            <div className="w-[80px] h-[80px] mb-5 rounded-full shadow-lg flex items-center justify-center bg-white border-[3px] border-white/60">
+              <div className="font-logo text-[13px] leading-[1.1] flex flex-col items-center pt-0.5" style={{ color: '#C4A265' }}>
+                <span>ПРАЙМ</span><span>БИР</span>
+              </div>
+            </div>
+            <h1 className="text-2xl font-black text-center mb-2 text-zinc-800">Вам есть 18 лет?</h1>
+            <p className="text-center mb-8 text-sm max-w-[260px] font-medium leading-relaxed text-zinc-500">Доступ к приложению разрешен только совершеннолетним пользователям.</p>
+            <button onClick={() => setAgeVerified(true)} className="w-full py-4 rounded-[20px] font-black text-[15px] active:scale-[0.97] transition-all mb-3 tracking-wide text-white"
+              style={{
+                background: 'linear-gradient(135deg, #C4A265 0%, #D4B87A 50%, #B8944F 100%)',
+                border: '1px solid rgba(212,184,122,0.6)',
+                boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.4), 0 4px 16px rgba(0,0,0,0.1)',
+              }}>ДА, МНЕ ЕСТЬ 18</button>
+            <button onClick={() => window.close()} className="w-full py-4 rounded-[20px] font-bold text-sm active:scale-[0.97] transition-all"
+              style={{
+                background: 'rgba(196,162,101,0.15)',
+                border: '1px solid rgba(196,162,101,0.3)',
+                color: '#C4A265',
+              }}>НЕТ, Я МЛАДШЕ</button>
+          </div>
+        </div>
+      )}
+
+      <main className="relative w-full h-[100dvh] z-20 overflow-y-auto overflow-x-hidden no-scrollbar scroll-smooth" style={{ overscrollBehavior: 'none' }}>
+
+        {/* Pour animation — permanently mounted, now inside main so it shares the stacking context */}
+        <div
+          className="fixed inset-0 z-[28] pointer-events-none overflow-hidden"
+          style={{
+            visibility: waveAnimating ? 'visible' : 'hidden',
+          }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundColor: fillColor || 'transparent',
+              transform: pourTransform,
+              transition: isPouring ? 'transform 1.4s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+            }}
+          >
+            {/* Wave top (matches header wave perfectly) */}
+            <div className="absolute top-[-21.5px] left-0 w-[200%] h-[22px] flex animate-[wave-smooth_6s_linear_infinite]">
+              <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: fillColor || 'transparent' }}>
+                <path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" />
+              </svg>
+              <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: fillColor || 'transparent' }}>
+                <path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <BeerBubblesCanvas />
+        <header ref={headerRef} className="w-full relative">
+          <div className="foam-bg pt-4 px-4 pb-6 relative overflow-hidden z-[20]">
+            <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
+              backgroundColor: displayBgColor,
+              WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
+              maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
+            }} />
+            <FoamBubblesCanvas />
+            <div className="flex justify-between items-center h-[70px] relative z-[50]">
+              <div className="flex items-center gap-3">
+                <div className="relative w-[56px] h-[56px] rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-transform" onClick={() => { setShowStory(true); setStoryRead(true); }}>
+                  {storyRead ? (
+                    <div className="absolute inset-0 rounded-full bg-zinc-300" />
+                  ) : (
+                    <div className="absolute inset-0 rounded-full animate-[spin_2.5s_linear_infinite] transition-colors duration-1000"
+                      style={{ background: `conic-gradient(from 0deg, transparent 0%, transparent 40%, ${accentColor} 100%)` }} />
+                  )}
+                  <div className="relative w-[50px] h-[50px] rounded-full bg-white flex items-center justify-center z-10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]">
+                    <div className="font-logo text-[10px] leading-[1.1] flex flex-col items-center pt-0.5 transition-colors duration-1000" style={{ color: accentColor }}>
+                      <span>ПРАЙМ</span><span>БИР</span>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setShowLocationSheet(true)} className="flex flex-col items-start active:opacity-70 text-left ml-1">
+                  <span className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest mb-0.5">{activeLocation.area}</span>
+                  <div className="flex items-center gap-1">
+                    <MapPin size={16} style={{ color: accentColor }} className="transition-colors duration-1000" />
+                    <h1 className="text-[15px] font-black tracking-tight text-zinc-900">{activeLocation.address}</h1>
+                    <ChevronDown size={14} className="text-zinc-400" />
+                  </div>
+                </button>
+              </div>
+              <button onClick={() => setShowSearchModal(true)} className="w-[56px] h-[56px] rounded-full active:scale-95 transition-all flex items-center justify-center duration-1000 liquid-glass">
+                <Search size={22} strokeWidth={2.5} style={{ color: accentColor }} className="transition-colors duration-1000" />
+              </button>
+            </div>
+            <div className="flex gap-2 mt-4 relative z-[50]">
+              <button onClick={() => setShowOriginSheet(true)} className="flex-1 flex items-center justify-between p-3.5 rounded-[16px] active:scale-[0.98] transition-transform liquid-glass">
+                <div className="flex flex-col items-start w-full pr-2">
+                  <span className="text-[9px] font-bold uppercase tracking-widest mb-0.5 text-zinc-500">Коллекция</span>
+                  <span className="text-[13px] font-black truncate text-zinc-900">{activeOrigin?.name || 'Не выбрана'}</span>
+                </div>
+                <ChevronDown size={16} className="text-zinc-500 shrink-0" />
+              </button>
+              <button onClick={() => !isStyleFilterDisabled && setShowCategorySheet(true)}
+                className={`flex-1 flex items-center justify-between p-3.5 rounded-[16px] transition-transform ${isStyleFilterDisabled ? 'opacity-50 bg-zinc-50/50 border border-white/30' : 'liquid-glass active:scale-[0.98]'}`}>
+                <div className="flex flex-col items-start w-full pr-2">
+                  <span className="text-[9px] font-bold uppercase tracking-widest mb-0.5 text-zinc-500">Стиль</span>
+                  <span className="text-[13px] font-black truncate text-zinc-900">{isStyleFilterDisabled ? '-' : activeCategory.name}</span>
+                </div>
+                {!isStyleFilterDisabled && <ChevronDown size={16} className="text-zinc-500 shrink-0" />}
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-2 mt-3 relative z-[50]">
+              {[{ id: 'rating', label: 'Рейтинг' }, { id: 'price', label: 'Цена' }, { id: 'abv', label: 'Крепость' }, { id: 'og', label: 'Плотность' }].map(s => {
+                const isActive = sortConfig.key === s.id && sortConfig.direction !== null;
+                return (
+                  <button key={s.id} onClick={() => setSortConfig(prev => prev.key === s.id ? { key: s.id, direction: prev.direction === 'desc' ? 'asc' : prev.direction === 'asc' ? null : 'desc' } : { key: s.id, direction: 'desc' })}
+                    className={`flex items-center justify-center py-2 rounded-full text-[9px] font-black transition-all tracking-wide duration-1000 ${isActive ? 'text-zinc-900' : 'liquid-glass text-zinc-600'}`}
+                    style={isActive ? { backgroundColor: hexToRgba(accentColor, 0.6), border: `1px solid ${hexToRgba(accentColor, 0.6)}`, boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.06)' } : {}}>
+                    {s.label}
+                    {isActive && (sortConfig.direction === 'desc' ? <ChevronDown size={10} className="ml-0.5" /> : <ChevronUp size={10} className="ml-0.5" />)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {/* Wave on header level — smoothly changes color along with background */}
+          <div className="absolute bottom-[-3px] left-0 w-[200%] h-[22px] z-[25] pointer-events-none flex animate-[wave-smooth_6s_linear_infinite]">
+            <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full transition-colors duration-[400ms]" style={{ fill: displayBgColor }}><path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" /></svg>
+            <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full transition-colors duration-[400ms]" style={{ fill: displayBgColor }}><path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" /></svg>
+          </div>
+          {/* Anti-gap strip */}
+          <div className="absolute bottom-0 left-0 w-full h-[4px] z-[9] transition-colors duration-[400ms]" style={{ backgroundColor: displayBgColor }} />
+        </header>
+        <div className="px-4 pt-4 pb-[120px] relative z-[30]">
+          {activeSearchTerm && (
+            <div className="mb-4 flex items-center justify-between p-3 rounded-[16px] border bg-white/30 border-white/50 text-zinc-900">
+              <span className="text-[13px] font-bold">Поиск: &quot;{activeSearchTerm}&quot;</span>
+              <button onClick={() => { setActiveSearchTerm(""); setSearchQuery(""); }} className="bg-white/20 rounded-full p-1.5 active:scale-90"><X size={14} /></button>
+            </div>
+          )}
+          {activeOrigin && (
+            <div className={`grid grid-cols-2 gap-3 pb-6 transition-all duration-500 ${isTransitioning ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
+              {currentItems.length > 0 ? currentItems.map((item, index) => {
+                const qty = getQty(item.id);
+                return (
+                  <div key={item.id} onClick={() => setSelectedItem(item)}
+                    className="group relative w-full rounded-[24px] overflow-hidden cursor-pointer active:scale-[0.96] transition-transform liquid-glass"
+                    style={{
+                      animation: `float-up 0.5s cubic-bezier(0.175, 0.885, 0.32, 1) ${index * 0.05}s both`,
+                    }}>
+                    <div className="flex items-center justify-center h-[140px] pt-3">
+                      <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
+                    </div>
+                    {/* Brewery top-left, Rating top-right — with borders */}
+                    {!item.isNotBeer && (
+                      <div className="flex items-center justify-between px-3 pt-2">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider" style={{ color: hexToRgba(accentContrast, 0.6), border: `1px solid ${hexToRgba(accentContrast, 0.12)}` }}>{item.brewery}</span>
+                        <div className="flex items-center gap-0.5 px-2 py-0.5 rounded-full" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.12)}` }}>
+                          <Star size={9} style={{ color: accentContrast, fill: accentContrast, opacity: 0.7 }} />
+                          <span className="text-[10px] font-black" style={{ color: hexToRgba(accentContrast, 0.7) }}>{item.rating}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="p-3 pt-1.5">
+                      <h3 className="text-[13px] font-black leading-tight line-clamp-2 mb-2" style={{ color: accentContrast }}>{item.name}</h3>
+                      {!item.isNotBeer && (
+                        <div className="flex flex-wrap gap-1 mb-2.5">
+                          <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.6), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
+                          <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.6), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% ЭНС</span>
+                          {item.ibu > 0 && <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.6), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-[16px]" style={{ color: accentContrast }}>{item.price} ₽</span>
+                        {qty === 0 ? (
+                          <button onClick={(e) => updateCart(e, item, 1)} className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 shrink-0 transition-transform liquid-glass">
+                            <Plus size={16} strokeWidth={2.5} style={{ color: accentContrast }} />
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-1.5 rounded-full p-1 shrink-0 liquid-glass" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={(e) => updateCart(e, item, -1)} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-90" style={{ backgroundColor: hexToRgba(accentColor, 0.3) }}><Minus size={12} strokeWidth={3} style={{ color: accentContrast }} /></button>
+                            <span className="text-[12px] font-black w-4 text-center" style={{ color: accentContrast }}>{qty}</span>
+                            <button onClick={(e) => updateCart(e, item, 1)} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition-transform" style={{ backgroundColor: hexToRgba(accentColor, 0.3) }}>
+                              <Plus size={12} strokeWidth={3} style={{ color: accentContrast }} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="col-span-2 py-24 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: hexToRgba(accentContrast, 0.1) }}>
+                    <Search size={32} style={{ color: hexToRgba(accentContrast, 0.3) }} />
+                  </div>
+                  <p className="font-bold text-lg" style={{ color: hexToRgba(accentContrast, 0.5) }}>Ничего не найдено</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {cartTotalItems > 0 && (
+        <div className="fixed bottom-0 left-0 w-full z-50 px-4 pb-5 pt-6 bg-gradient-to-t from-[#09090B] to-transparent pointer-events-none" style={{ animation: 'float-up 0.5s ease-out' }}>
+          <button onClick={() => setShowCart(true)} className="w-full flex items-center justify-between p-4 rounded-[24px] shadow-2xl active:scale-[0.98] pointer-events-auto liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-[16px] flex items-center justify-center liquid-glass"><Beer size={20} strokeWidth={2.5} style={{ color: accentContrast }} /></div>
+              <div className="flex flex-col items-start">
+                <span className="font-black text-[16px]" style={{ color: accentContrast }}>Корзина</span>
+                <span className="text-[11px] font-bold opacity-70" style={{ color: accentContrast }}>{cartTotalItems} позиций</span>
+              </div>
+            </div>
+            <div className="px-5 py-2.5 rounded-[12px] liquid-glass"><span className="font-black text-[16px]" style={{ color: accentContrast }}>{cartTotalPrice} ₽</span></div>
+          </button>
+        </div>
+      )}
+
+      {showStory && (
+        <div className="fixed inset-0 z-[500] bg-zinc-950 flex flex-col text-white" style={{ animation: 'fade-in 0.2s ease-out' }}>
+          <button onClick={() => setShowStory(false)} className="absolute top-8 right-4 z-20 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center active:scale-90 border border-white/20"><X size={20} /></button>
+          <div className="flex-1 flex flex-col items-center justify-center p-6" style={{ background: `linear-gradient(to bottom, ${hexToRgba(accentColor, 0.2)}, #000000)` }}>
+            <Flame size={80} className="mb-6 animate-pulse" style={{ color: accentColor, filter: `drop-shadow(0 0 30px ${hexToRgba(accentColor, 0.6)})` }} />
+            <div className="font-logo text-4xl text-center mb-4 leading-[1.1] flex flex-col items-center"><span>ПРАЙМ</span><span>БИР</span></div>
+            <p className="text-center text-[15px] font-bold mb-10 text-white/70 max-w-[280px]">Откройте для себя новые вкусы с нашими специальными предложениями на кране.</p>
+            <button onClick={() => { setShowStory(false); setStoryRead(true); }} className="w-full max-w-[280px] py-4 rounded-[20px] font-black text-[16px] active:scale-95 shadow-xl duration-1000 liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.6), color: accentContrast }}>В КАТАЛОГ</button>
+          </div>
+        </div>
+      )}
+
+      {showSearchModal && (
+        <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSearchModal(false)} style={{ animation: 'fade-in 0.3s ease-out' }} />
+          <div className="relative flex flex-col max-h-[85vh]" style={{ animation: 'slide-up-glass 0.3s ease-out both' }}>
+            <div className="relative w-full h-[20px] shrink-0 z-[5]" style={{ marginBottom: '-2px' }}>
+              <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-[wave-smooth_6s_linear_infinite]">
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+              </div>
+            </div>
+            <div className="relative foam-bg p-6 pb-12 flex flex-col overflow-hidden" style={{ animation: 'none' }}>
+              <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
+                backgroundColor: displayBgColor,
+                WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
+                maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
+              }} />
+              <FoamBubblesCanvas />
+              <button onClick={() => setShowSearchModal(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
+              <div className="flex items-center gap-3 mb-6 relative z-[5]">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass">
+                  <Search size={20} strokeWidth={2.5} className="text-zinc-700" />
+                </div>
+                <h2 className="text-2xl font-black">Поиск</h2>
+              </div>
+              <p className="text-zinc-500 text-[13px] mb-6 font-bold relative z-[5]">Введите название пива или пивоварни.</p>
+              <textarea value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Название или пивоварня..." className="w-full bg-white/70 border border-white/50 rounded-[20px] p-4 text-zinc-900 text-[15px] font-medium focus:outline-none focus:border-zinc-400 h-28 shadow-sm resize-none no-scrollbar relative z-[5]" />
+              <div className="flex gap-2 mt-3 relative z-[5]">
+                <button onClick={() => { setActiveSearchTerm(searchQuery); setShowSearchModal(false); }} disabled={!searchQuery.trim()} className="w-full rounded-[16px] py-4 font-black text-[13px] flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 liquid-glass"><Search size={16} /> ИСКАТЬ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCart && (
+        <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCart(false)} style={{ animation: 'fade-in 0.3s ease-out' }} />
+          <div className="relative flex flex-col h-[85vh] overflow-hidden" style={{ animation: 'slide-up-glass 0.3s ease-out both' }}>
+            {/* Wave top — same as product detail */}
+            <div className="relative w-full h-[20px] shrink-0 z-[5]" style={{ marginBottom: '-2px' }}>
+              <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-[wave-smooth_6s_linear_infinite]">
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+              </div>
+            </div>
+            <div className="relative flex-1 p-6 pb-0 flex flex-col overflow-hidden foam-bg" style={{ animation: 'none' }}>
+              <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
+                backgroundColor: accentColor,
+                WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)',
+                maskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)'
+              }} />
+              <FoamBubblesCanvas />
+              <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mb-6 shrink-0 relative z-[5]" />
+              <div className="flex justify-between items-center mb-6 px-1 shrink-0 relative z-[5]">
+                <h2 className="text-2xl font-black">Ваш заказ</h2>
+                <button onClick={() => setShowCart(false)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass"><X size={20} /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto no-scrollbar pb-[180px] px-1 relative z-[5]">
+                <div className="flex flex-col gap-3">
+                  {cartItems.map((cartItem) => (
+                    <div key={cartItem.item.id} className="flex items-center gap-3 p-3 rounded-[20px] cursor-pointer active:scale-[0.98] transition-transform liquid-glass"
+                      onClick={() => { setSelectedItem(cartItem.item); setShowCart(false); }}>
+                      <div className="w-14 h-14 rounded-[12px] flex items-center justify-center shrink-0 p-2 liquid-glass">
+                        <ItemImage item={cartItem.item} className="w-auto h-full max-h-[40px] drop-shadow-md" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-[14px] font-black text-zinc-800 truncate mb-1">{cartItem.item.name}</h4>
+                        <span className="text-[13px] font-bold text-zinc-500 block">{cartItem.item.price * cartItem.quantity} ₽</span>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-full p-1 liquid-glass" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => updateCart(null, cartItem.item, -1)} className="w-7 h-7 rounded-full flex items-center justify-center active:scale-90 liquid-glass"><Minus size={14} className="text-zinc-900" /></button>
+                        <span className="text-[12px] font-black text-zinc-900 w-3 text-center">{cartItem.quantity}</span>
+                        <button onClick={() => updateCart(null, cartItem.item, 1)} className="w-7 h-7 rounded-full flex items-center justify-center active:scale-90" style={{ backgroundColor: hexToRgba(accentColor, 0.3) }}>
+                          <Plus size={14} style={{ color: accentContrast }} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 w-full z-20 pointer-events-none">
+                <div className="h-[20px] bg-gradient-to-t from-black/10 to-transparent" />
+                <div className="p-5 pb-6 liquid-glass pointer-events-auto">
+                  <div className="flex justify-between items-center mb-4 px-1">
+                    <span className="text-zinc-500 font-bold text-[11px] uppercase tracking-widest">Итого</span>
+                    <span className="text-2xl font-black text-zinc-900">{cartTotalPrice} ₽</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="flex-1 flex items-center justify-center gap-2 py-4 rounded-[16px] font-black text-[13px] active:scale-[0.98] liquid-glass"><CalendarCheck size={16} /> БРОНЬ</button>
+                    <button className="flex-1 flex items-center justify-center gap-2 py-4 rounded-[16px] font-black text-[13px] active:scale-[0.98] liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.3), color: accentContrast }}>
+                      <Truck size={16} /> ДОСТАВКА
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedItem && (() => {
+        const detailRef = React.createRef();
+        let startY = 0;
+        const onTouchStart = (e) => { startY = e.touches[0].clientY; };
+        const onTouchEnd = (e) => { if (e.changedTouches[0].clientY - startY > 80) closeDetail(); };
+        const itemCat = ALL_CATEGORIES.find(c => c.id === selectedItem.type);
+        const itemColor = itemCat ? itemCat.color : '#FDE047';
+        const itemContrast = getContrastYIQ(itemColor);
+        return (
+          <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeDetail} style={{ animation: closingDetail ? 'fade-out 0.3s ease-in forwards' : 'fade-in 0.3s ease-out' }} />
+            <div className="relative flex flex-col max-h-[95vh]" style={{ animation: closingDetail ? 'slide-down-glass 0.3s ease-in forwards' : 'slide-up-glass 0.3s ease-out both' }}
+              onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+              {/* Wave = top edge of card, behind it is blur */}
+              <div className="relative w-full h-[20px] shrink-0 z-[5]" style={{ marginBottom: '-2px' }}>
+                <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-[wave-smooth_6s_linear_infinite]">
+                  <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+                  <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+                </div>
+              </div>
+              {/* Card body = foam-bg + item color gradient + bubbles, like header */}
+              <div className="relative flex-1 flex flex-col overflow-hidden foam-bg" style={{ animation: 'none' }}>
+                <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${hexToRgba(itemColor, 0.85)} 0%, ${hexToRgba(itemColor, 0.5)} 30%, ${hexToRgba(itemColor, 0.15)} 60%, transparent 85%)` }} />
+                <FoamBubblesCanvas />
+                <button onClick={closeDetail} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} style={{ color: itemColor }} /></button>
+                <div className="overflow-y-auto no-scrollbar flex-1 pb-32 relative z-[5]">
+                  {/* Swipe indicator */}
+                  <div className="w-10 h-1 bg-zinc-400/40 rounded-full mx-auto mt-2 mb-1" />
+                  {/* Full-width image */}
+                  <div className="w-full h-[280px] flex items-center justify-center relative">
+                    <ItemImage item={selectedItem} className="w-auto h-[85%] drop-shadow-2xl relative z-[2]" />
+                  </div>
+                  {/* Brewery + Rating + Name + Stats */}
+                  <div className="px-6 pt-2 mb-5">
+                    {!selectedItem.isNotBeer && (
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[12px] font-black uppercase tracking-wide" style={{ color: itemContrast }}>{selectedItem.brewery}</span>
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-[8px]" style={{ backgroundColor: hexToRgba(itemColor, 0.25), border: `1px solid ${hexToRgba(itemColor, 0.4)}` }}>
+                          <Star size={11} style={{ color: itemContrast, fill: itemContrast }} /><span className="text-[11px] font-black" style={{ color: itemContrast }}>{selectedItem.rating}</span>
+                        </div>
+                      </div>
+                    )}
+                    <h2 className="text-[28px] font-black tracking-tight leading-tight mb-3" style={{ color: itemContrast }}>{selectedItem.name}</h2>
+                    {!selectedItem.isNotBeer && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-[8px] text-[11px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.abv}% ABV</span>
+                        <span className="px-2.5 py-1 rounded-[8px] text-[11px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.og}% ЭНС</span>
+                        {selectedItem.ibu > 0 && <span className="px-2.5 py-1 rounded-[8px] text-[11px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.ibu} IBU</span>}
+                      </div>
+                    )}
+                  </div>
+                  {!selectedItem.isNotBeer && selectedItem.nutrition && (
+                    <div className="mx-6 mb-5 p-4 rounded-[20px]" style={{ backgroundColor: hexToRgba(itemColor, 0.15), border: `1px solid ${hexToRgba(itemColor, 0.3)}` }}>
+                      <h3 className="text-[9px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: hexToRgba(itemContrast, 0.5) }}><Flame size={12} /> КБЖУ НА 100МЛ</h3>
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div><span className="text-[18px] font-black" style={{ color: itemContrast }}>{selectedItem.nutrition.kcal}</span><div className="text-[9px] font-bold uppercase mt-0.5" style={{ color: hexToRgba(itemContrast, 0.5) }}>Ккал</div></div>
+                        <div><span className="text-[18px] font-black" style={{ color: itemContrast }}>{selectedItem.nutrition.p}</span><div className="text-[9px] font-bold uppercase mt-0.5" style={{ color: hexToRgba(itemContrast, 0.5) }}>Белки</div></div>
+                        <div><span className="text-[18px] font-black" style={{ color: itemContrast }}>{selectedItem.nutrition.f}</span><div className="text-[9px] font-bold uppercase mt-0.5" style={{ color: hexToRgba(itemContrast, 0.5) }}>Жиры</div></div>
+                        <div><span className="text-[18px] font-black" style={{ color: itemContrast }}>{selectedItem.nutrition.c}</span><div className="text-[9px] font-bold uppercase mt-0.5" style={{ color: hexToRgba(itemContrast, 0.5) }}>Углев</div></div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="px-6 mb-6">
+                    <h3 className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: hexToRgba(itemContrast, 0.5) }}>Описание</h3>
+                    <p className="text-[14px] font-medium leading-relaxed" style={{ color: hexToRgba(itemContrast, 0.7) }}>{selectedItem.desc}</p>
+                  </div>
+                </div>
+                <div className="absolute bottom-0 left-0 w-full z-20 pointer-events-none">
+                  <div className="h-[20px] bg-gradient-to-t from-black/10 to-transparent" />
+                  <div className="p-5 pb-6 liquid-glass pointer-events-auto">
+                    <div className="flex gap-4 items-center">
+                      <div className="text-3xl font-black flex-1" style={{ color: itemContrast }}>{selectedItem.price} ₽</div>
+                      {getQty(selectedItem.id) === 0 ? (
+                        <button onClick={() => updateCart(null, selectedItem, 1)} className="py-4 px-10 rounded-[20px] font-black text-[14px] active:scale-[0.98] liquid-glass" style={{ color: itemContrast }}>В КОРЗИНУ</button>
+                      ) : (
+                        <div className="flex items-center gap-4 rounded-full p-1 liquid-glass">
+                          <button onClick={() => updateCart(null, selectedItem, -1)} className="w-12 h-12 rounded-full flex items-center justify-center active:scale-90" style={{ backgroundColor: hexToRgba(itemColor, 0.2) }}><Minus size={18} style={{ color: itemContrast }} /></button>
+                          <span className="text-[18px] font-black w-6 text-center" style={{ color: itemContrast }}>{getQty(selectedItem.id)}</span>
+                          <button onClick={() => updateCart(null, selectedItem, 1)} className="w-12 h-12 rounded-full flex items-center justify-center active:scale-90" style={{ backgroundColor: hexToRgba(itemColor, 0.3) }}>
+                            <Plus size={18} style={{ color: itemContrast }} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {showOriginSheet && (
+        <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => closeSheet('origin', setShowOriginSheet)} style={{ animation: closingSheet === 'origin' ? 'fade-out 0.3s ease-in forwards' : 'fade-in 0.3s ease-out' }} />
+          <div className="relative flex flex-col h-[82vh]" style={{ animation: closingSheet === 'origin' ? 'slide-down-glass 0.3s ease-in forwards' : 'slide-up-glass 0.3s ease-out both' }}>
+            <div className="relative w-full h-[20px] shrink-0 z-[5]" style={{ marginBottom: '-2px' }}>
+              <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-[wave-smooth_6s_linear_infinite]">
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+              </div>
+            </div>
+            <div className="relative flex-1 foam-bg p-6 pb-12 overflow-hidden" style={{ animation: 'none' }}>
+              <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
+                backgroundColor: displayBgColor,
+                WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
+                maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
+              }} />
+              <FoamBubblesCanvas />
+              <button onClick={() => closeSheet('origin', setShowOriginSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
+              <h3 className="text-2xl font-black tracking-tight mb-6 px-1 relative z-[5]">Коллекция</h3>
+              <div className="flex flex-col gap-2 relative z-[5]">
+                {ORIGINS.map(origin => (
+                  <button key={origin.id} onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin), origin.id === 'not_beer')}
+                    className={`flex items-center justify-between p-4 rounded-[20px] ${activeOrigin?.id === origin.id ? 'shadow-sm' : 'liquid-glass'}`}
+                    style={activeOrigin?.id === origin.id ? { backgroundColor: hexToRgba(accentColor, 0.15), border: `1px solid ${hexToRgba(accentColor, 0.3)}` } : {}}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${activeOrigin?.id === origin.id ? 'shadow-sm' : 'text-zinc-400'}`}
+                        style={activeOrigin?.id === origin.id ? { backgroundColor: hexToRgba(accentColor, 0.3) } : { backgroundColor: 'rgba(255,255,255,0.4)' }}>
+                        <origin.icon size={18} />
+                      </div>
+                      <span className={`font-bold text-[15px] ${activeOrigin?.id === origin.id ? 'text-zinc-900' : 'text-zinc-600'}`}>{origin.name}</span>
+                    </div>
+                    {activeOrigin?.id === origin.id && <Check className="text-zinc-900" size={20} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCategorySheet && !isStyleFilterDisabled && (
+        <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => closeSheet('category', setShowCategorySheet)} style={{ animation: closingSheet === 'category' ? 'fade-out 0.3s ease-in forwards' : 'fade-in 0.3s ease-out' }} />
+          <div className="relative flex flex-col h-[82vh]" style={{ animation: closingSheet === 'category' ? 'slide-down-glass 0.3s ease-in forwards' : 'slide-up-glass 0.3s ease-out both' }}>
+            {/* Wave — same as collection sheet */}
+            <div className="relative w-full h-[20px] shrink-0 z-[5]" style={{ marginBottom: '-2px' }}>
+              <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-[wave-smooth_6s_linear_infinite]">
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+              </div>
+            </div>
+            <div className="relative flex-1 foam-bg p-6 pb-12 overflow-hidden" style={{ animation: 'none' }}>
+              <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
+                backgroundColor: displayBgColor,
+                WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
+                maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
+              }} />
+              <FoamBubblesCanvas />
+              <button onClick={() => closeSheet('category', setShowCategorySheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
+              <h3 className="text-2xl font-black tracking-tight mb-4 px-1 relative z-[5]">Стиль</h3>
+              <div className="grid grid-cols-2 gap-2.5 relative z-[5]">
+                {/* Любой стиль */}
+                <button onClick={() => handleFilterChange(setShowCategorySheet, () => setActiveCategory(ALL_CATEGORIES[0]))}
+                  className={`flex items-start gap-3 p-4 rounded-[20px] text-left ${activeCategory.id === 'all_styles' ? 'shadow-sm' : 'liquid-glass'}`}
+                  style={activeCategory.id === 'all_styles' ? { backgroundColor: hexToRgba('#FDE047', 0.2), border: `1px solid ${hexToRgba('#FDE047', 0.35)}` } : {}}>
+                  <div className="w-5 h-5 rounded-full shrink-0 shadow-sm border border-black/10 mt-0.5" style={{ backgroundColor: '#FDE047' }} />
+                  <div className="flex-1 min-w-0">
+                    <span className={`font-black text-[13px] block ${activeCategory.id === 'all_styles' ? 'text-zinc-900' : 'text-zinc-600'}`}>Любой</span>
+                    <span className="text-[9px] font-medium text-zinc-400 block mt-0.5">Все стили пива</span>
+                  </div>
+                </button>
+                {/* Groups */}
+                {CATEGORY_GROUPS.map(group => {
+                  const groupActive = group.items.some(c => c.id === activeCategory.id);
+                  return (
+                    <button key={group.group} onClick={() => handleFilterChange(setShowCategorySheet, () => setActiveCategory(group.items[0]))}
+                      className={`flex items-start gap-3 p-4 rounded-[20px] text-left ${groupActive ? 'shadow-sm' : 'liquid-glass'}`}
+                      style={groupActive ? { backgroundColor: hexToRgba(group.color, 0.2), border: `1px solid ${hexToRgba(group.color, 0.35)}` } : {}}>
+                      <div className="w-5 h-5 rounded-full shrink-0 shadow-sm border border-black/10 mt-0.5" style={{ backgroundColor: group.color }} />
+                      <div className="flex-1 min-w-0">
+                        <span className={`font-black text-[12px] block ${groupActive ? 'text-zinc-900' : 'text-zinc-600'}`}>{group.group}</span>
+                        <span className="text-[9px] font-medium text-zinc-400 block mt-0.5 line-clamp-2">{group.items.map(c => c.name).join(' / ')}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLocationSheet && (
+        <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowLocationSheet(false)} style={{ animation: 'fade-in 0.3s ease-out' }} />
+          <div className="relative bg-[#FDFCF8] rounded-t-[32px] p-6 pb-12" style={{ animation: 'slide-up-glass 0.3s ease-out both' }}>
+            <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mb-6"></div>
+            <h3 className="text-2xl font-black tracking-tight mb-6 px-1">Локация</h3>
+            <div className="flex flex-col gap-3">
+              {LOCATIONS.map(loc => (
+                <button key={loc.id} onClick={() => { setActiveLocation(loc); setShowLocationSheet(false); }}
+                  className={`flex flex-col items-start p-5 rounded-[20px] transition-all duration-1000 ${activeLocation.id === loc.id ? 'shadow-md' : 'bg-white border border-zinc-200 shadow-sm'}`}
+                  style={activeLocation.id === loc.id ? { backgroundColor: hexToRgba(accentColor, 0.4), border: `1px solid ${hexToRgba(accentColor, 0.6)}` } : {}}>
+                  <span className={`text-[9px] font-black uppercase tracking-widest mb-1 ${activeLocation.id === loc.id ? 'text-zinc-800' : 'text-zinc-500'}`}>{loc.area}</span>
+                  <span className="font-black text-[18px] text-zinc-900">{loc.address}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
