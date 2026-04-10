@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Search, Star, X, Flame, Droplets, ChevronDown, ChevronUp, ShieldCheck, Check,
   Globe, MapPin, Zap, Plus, Minus, Truck, CalendarCheck, Package, Beer,
-  Trash2
+  Trash2, Users, Archive, Clock3, Sparkles
 } from 'lucide-react';
 
 // =======================
@@ -33,11 +33,14 @@ const LOCATIONS = [
 
 const ORIGINS = [
   { id: 'all', name: 'Всё', icon: Beer },
-  { id: 'tap', name: 'На кране', icon: Droplets },
-  { id: 'ru', name: 'Россия (РФ)', icon: MapPin },
-  { id: 'import', name: 'Импорт', icon: Globe },
+  { id: 'ru', name: 'Россия', icon: MapPin },
   { id: 'promo', name: 'Акции', icon: Zap },
-  { id: 'not_beer', name: 'Не пиво', icon: Package }
+  { id: 'import', name: 'Импорт', icon: Globe },
+  { id: 'collab', name: 'Коллаборации', icon: Users },
+  { id: 'tap', name: 'На кране', icon: Droplets },
+  { id: 'soon', name: 'Скоро', icon: Clock3 },
+  { id: 'not_beer', name: 'Не пиво', icon: Package },
+  { id: 'archive', name: 'Архив', icon: Archive }
 ];
 
 const CATEGORY_GROUPS = [
@@ -232,20 +235,8 @@ const BeerBottleIcon = ({ bottleColor, labelColor, label, className }) => (
 
 const ItemImage = ({ item, className }) => {
   if (item.isNotBeer) return <Package size={48} className={`text-white/80 drop-shadow-lg ${className}`} />;
-  const isCan = ['neipa', 'sour', 'gose', 'na', 'lager'].includes(item.type);
-  const cat = CATEGORIES.find(c => c.id === item.type);
-  const color = cat ? cat.color : '#FDE047';
-  let label = 'BEER';
-  if (item.type === 'neipa') label = 'HAZY';
-  if (item.type === 'ipa') label = 'IPA';
-  if (item.type === 'stout') label = 'STOUT';
-  if (item.type === 'na') label = 'ZERO';
-  if (item.type === 'lager') label = 'LAGER';
-  if (item.type === 'sour') label = 'SOUR';
-  if (item.type === 'gose') label = 'GOSE';
-  if (isCan) return <BeerCanIcon color={color} label={label} className={className} />;
-  const bottleColor = item.type === 'stout' ? '#18181B' : '#8B4513';
-  return <BeerBottleIcon bottleColor={bottleColor} labelColor={color} label={label} className={className} />;
+  // All beer uses the same bottle PNG (no background) — served from /public
+  return <img src="/bottle.png" alt={item.name} className={className} style={{ objectFit: 'contain' }} draggable={false} />;
 };
 
 // =======================
@@ -267,15 +258,15 @@ const BeerBubblesCanvas = () => {
     // и идёт до очень большого числа. Каждый пузырь плывёт вверх в мировых координатах.
     // На экране рисуем только те, что попадают в viewport с учётом scrollTop.
     const WORLD_HEIGHT = 20000;
-    const bubbles = Array.from({ length: 600 }).map(() => ({
+    const bubbles = Array.from({ length: 1100 }).map(() => ({
       x: Math.random() * window.innerWidth,
       worldY: Math.random() * WORLD_HEIGHT,
-      size: Math.random() * 4 + 1.5,
+      size: Math.random() * 5 + 1.2,
       baseSize: 0,
       speed: Math.random() * 0.4 + 0.1,
       drift: Math.random() * 0.5,
       phase: Math.random() * Math.PI * 2,
-      opacity: Math.random() * 0.35 + 0.1,
+      opacity: Math.random() * 0.4 + 0.12,
       popping: false,
       popFrame: 0,
     }));
@@ -425,18 +416,18 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
       style={{
         animation: `float-up 280ms cubic-bezier(0.23, 1, 0.32, 1) ${Math.min(index * 40, 320)}ms both`,
       }}>
-      <div className="flex items-center justify-center h-[140px] pt-3">
-        <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
-      </div>
       {!item.isNotBeer && (
-        <div className="flex items-center justify-between px-3 pt-2">
-          <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-bold italic" style={{ color: hexToRgba(accentContrast, 0.7), border: `1px solid ${hexToRgba(accentContrast, 0.14)}` }}>{item.brewery}</span>
-          <div className="flex items-center gap-0.5 px-2 py-0.5 rounded-full" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.14)}` }}>
-            <Star size={9} style={{ color: accentContrast, fill: accentContrast, opacity: 0.7 }} />
-            <span className="font-display text-[11px] font-bold" style={{ color: hexToRgba(accentContrast, 0.75) }}>{item.rating}</span>
+        <div className="flex items-center justify-between px-3 pt-3 pb-1">
+          <span className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>{item.brewery}</span>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px]" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
+            <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
+            <span className="font-display text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.9) }}>{item.rating}</span>
           </div>
         </div>
       )}
+      <div className="flex items-center justify-center h-[130px] pt-1">
+        <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
+      </div>
       <div className="p-3 pt-1.5">
         <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
         {!item.isNotBeer && (
@@ -589,9 +580,10 @@ export default function App() {
   const [pourTransform, setPourTransform] = useState('translateY(105%)');
   const [isPouring, setIsPouring] = useState(false);
 
-  // Synchronized color aliases for UI components to wait until wave finishes pouring
+  // Synchronized color aliases: accentColor holds during pour (for bg/gradients),
+  // but text contrast updates IMMEDIATELY to the target color so typography re-renders instantly
   const accentColor = holdBgColor;
-  const accentContrast = useMemo(() => getContrastYIQ(accentColor), [accentColor]);
+  const accentContrast = useMemo(() => getContrastYIQ(targetAccentColor), [targetAccentColor]);
 
   useEffect(() => {
     if (prevAccentRef.current !== targetAccentColor) {
@@ -679,7 +671,7 @@ export default function App() {
         h1, h2, h3, h4, h5, h6 { line-height: 1.1; letter-spacing: -0.018em; }
         .font-display {
           font-family: 'Alegreya', Georgia, serif;
-          font-feature-settings: "kern", "liga", "dlig", "onum";
+          font-feature-settings: "kern", "calt", "onum", "liga" 0, "dlig" 0;
           font-variation-settings: normal;
         }
         .font-logo {
@@ -774,14 +766,14 @@ export default function App() {
           <div className="absolute inset-0 bg-[#EDD9AB]" />
           <div className="absolute inset-0 foam-bg" style={{ animation: 'none' }} />
           <FoamBubblesCanvas />
-          {/* Стекломорфизм контейнер */}
+          {/* Стекломорфизм контейнер — очень прозрачный, пузыри видны сквозь него */}
           <div className="relative z-10 flex flex-col items-center w-full max-w-[340px] p-8 pt-12 pb-10 rounded-[32px]"
             style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.3) 100%)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1.5px solid rgba(255,255,255,0.5)',
-              boxShadow: 'inset 0 1px 3px rgba(255,255,255,0.6), inset 0 -1px 3px rgba(0,0,0,0.03), 0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04)',
+              background: 'rgba(255,255,255,0.04)',
+              backdropFilter: 'blur(2px)',
+              WebkitBackdropFilter: 'blur(2px)',
+              border: '1px solid rgba(255,255,255,0.22)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
             }}>
             <div className="w-[80px] h-[80px] mb-5 rounded-full shadow-lg flex items-center justify-center bg-white border-[3px] border-white/60">
               <div className="font-logo text-[13px] leading-[1.1] flex flex-col items-center pt-0.5" style={{ color: '#C4A265' }}>
@@ -789,19 +781,19 @@ export default function App() {
               </div>
             </div>
             <h1 className="font-display text-[28px] font-black text-center mb-2 text-zinc-800 tracking-[-0.02em] leading-[1.1]">Вам есть 18 лет?</h1>
-            <p className="text-center mb-8 text-sm max-w-[260px] font-medium leading-relaxed text-zinc-500">Доступ к приложению разрешен только совершеннолетним пользователям.</p>
-            <button onClick={() => setAgeVerified(true)} className="w-full py-4 rounded-[20px] font-black text-[15px] active:scale-[0.97] transition-all mb-3 tracking-wide text-white"
+            <p className="text-center mb-8 text-sm max-w-[260px] font-medium leading-relaxed text-zinc-600">Доступ к приложению разрешен только совершеннолетним пользователям.</p>
+            <button onClick={() => setAgeVerified(true)} className="w-full py-4 rounded-[20px] font-display font-black text-[20px] active:scale-[0.97] transition-all mb-3 tracking-[-0.01em] text-white"
               style={{
                 background: 'linear-gradient(135deg, #C4A265 0%, #D4B87A 50%, #B8944F 100%)',
                 border: '1px solid rgba(212,184,122,0.6)',
                 boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.4), 0 4px 16px rgba(0,0,0,0.1)',
-              }}>ДА, МНЕ ЕСТЬ 18</button>
-            <button onClick={() => window.close()} className="w-full py-4 rounded-[20px] font-bold text-sm active:scale-[0.97] transition-all"
+              }}>Да, мне есть 18</button>
+            <button onClick={() => window.close()} className="w-full py-4 rounded-[20px] font-display font-bold text-[18px] active:scale-[0.97] transition-all tracking-[-0.01em]"
               style={{
-                background: 'rgba(196,162,101,0.15)',
-                border: '1px solid rgba(196,162,101,0.3)',
-                color: '#C4A265',
-              }}>НЕТ, Я МЛАДШЕ</button>
+                background: 'rgba(196,162,101,0.12)',
+                border: '1px solid rgba(196,162,101,0.28)',
+                color: '#B8944F',
+              }}>Нет, я младше</button>
           </div>
         </div>
       )}
@@ -890,7 +882,7 @@ export default function App() {
               </button>
             </div>
             <div className="grid grid-cols-4 gap-2 mt-3 relative z-[50]">
-              {[{ id: 'rating', label: 'Рейтинг' }, { id: 'price', label: 'Цена' }, { id: 'abv', label: 'Крепость' }, { id: 'og', label: 'OG' }].map(s => {
+              {[{ id: 'rating', label: 'Рейтинг' }, { id: 'price', label: 'Цена' }, { id: 'abv', label: 'Крепость' }, { id: 'og', label: 'Плотность' }].map(s => {
                 const isActive = sortConfig.key === s.id && sortConfig.direction !== null;
                 return (
                   <button key={s.id} onClick={() => setSortConfig(prev => prev.key === s.id ? { key: s.id, direction: prev.direction === 'desc' ? 'asc' : prev.direction === 'asc' ? null : 'desc' } : { key: s.id, direction: 'desc' })}
@@ -1184,22 +1176,38 @@ export default function App() {
               }} />
               <FoamBubblesCanvas />
               <button onClick={() => closeSheet('origin', setShowOriginSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
-              <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-6 px-1 relative z-[5]">Коллекция</h3>
-              <div className="flex flex-col gap-2 relative z-[5]">
-                {ORIGINS.map(origin => (
-                  <button key={origin.id} onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin), origin.id === 'not_beer')}
-                    className={`flex items-center justify-between p-4 rounded-[20px] ${activeOrigin?.id === origin.id ? 'shadow-sm' : 'liquid-glass'}`}
-                    style={activeOrigin?.id === origin.id ? { backgroundColor: hexToRgba(accentColor, 0.35), border: `1px solid ${hexToRgba(accentColor, 0.5)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${activeOrigin?.id === origin.id ? 'shadow-sm' : 'text-zinc-400'}`}
-                        style={activeOrigin?.id === origin.id ? { backgroundColor: hexToRgba(accentColor, 0.3) } : { backgroundColor: 'rgba(255,255,255,0.4)' }}>
-                        <origin.icon size={18} />
+              <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Коллекция</h3>
+              <div className="relative z-[5]">
+                {/* "Всё" — big solid full-width button */}
+                {(() => {
+                  const origin = ORIGINS[0];
+                  const active = activeOrigin?.id === origin.id;
+                  return (
+                    <button onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin))}
+                      className={`flex items-start gap-3 p-4 rounded-[20px] text-left w-full mb-2.5 ${active ? 'shadow-sm' : 'liquid-glass'}`}
+                      style={active ? { backgroundColor: hexToRgba(accentColor, 0.35), border: `1px solid ${hexToRgba(accentColor, 0.5)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
+                      <div className="flex-1 min-w-0">
+                        <span className={`font-black text-[13px] block ${active ? 'text-zinc-900' : 'text-zinc-600'}`}>Всё</span>
+                        <span className="text-[9px] font-medium text-zinc-400 block mt-0.5">Все позиции каталога</span>
                       </div>
-                      <span className={`font-bold text-[15px] ${activeOrigin?.id === origin.id ? 'text-zinc-900' : 'text-zinc-600'}`}>{origin.name}</span>
-                    </div>
-                    {activeOrigin?.id === origin.id && <Check className="text-zinc-900" size={20} />}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })()}
+                {/* Rest in 2-col grid — same style as Style sheet groups, no color circles */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {ORIGINS.slice(1).map(origin => {
+                    const active = activeOrigin?.id === origin.id;
+                    return (
+                      <button key={origin.id} onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin), origin.id === 'not_beer')}
+                        className={`flex items-start gap-3 p-4 rounded-[20px] text-left ${active ? 'shadow-sm' : 'liquid-glass'}`}
+                        style={active ? { backgroundColor: hexToRgba(accentColor, 0.35), border: `1px solid ${hexToRgba(accentColor, 0.5)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
+                        <div className="flex-1 min-w-0">
+                          <span className={`font-black text-[12px] block ${active ? 'text-zinc-900' : 'text-zinc-600'}`}>{origin.name}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
