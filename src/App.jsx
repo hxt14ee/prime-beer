@@ -185,8 +185,19 @@ const MOCK_ITEMS = [
   { id: 70, name: "Maisel's Weisse Alkoholfrei", brewery: 'Maisel', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.4, ibu: 12, og: 6, price: 400, rating: 4.7, image: '', desc: 'Баварское безалкогольное пшеничное.', nutrition: { kcal: 23, p: 0.4, f: 0, c: 4.9 } },
   { id: 101, name: 'Футболка Prime', brewery: 'Prime Store', type: 'merch', origin: 'not_beer', onTap: false, isPromo: false, isNotBeer: true, price: 1800, rating: 5.0, image: '', desc: 'Плотный хлопок 100%.' },
   { id: 102, name: 'Тюльпан Prime', brewery: 'Prime Glass', type: 'merch', origin: 'not_beer', onTap: false, isPromo: false, isNotBeer: true, price: 600, rating: 4.9, image: '', desc: 'Идеальный бокал для IPA.' },
-  { id: 103, name: 'Худи "Hop Head"', brewery: 'Prime Store', type: 'merch', origin: 'not_beer', onTap: false, isPromo: true, isNotBeer: true, price: 3500, rating: 4.8, image: '', desc: 'Оверсайз-худи с вышивкой хмеля.' }
+  { id: 103, name: 'Худи "Hop Head"', brewery: 'Prime Store', type: 'merch', origin: 'not_beer', onTap: false, isPromo: true, isNotBeer: true, price: 3500, rating: 4.8, image: '', desc: 'Оверсайз-худи с вышивкой хмеля.' },
+  { id: 201, name: 'Ghost in the Machine', brewery: 'Parish', type: 'neipa', origin: 'archive', onTap: false, isPromo: false, isNotBeer: false, abv: 8.5, ibu: 40, og: 18, price: 950, rating: 4.9, image: '', desc: 'Легендарный DIPA, которого больше нет.' },
+  { id: 202, name: 'Kentucky Brunch', brewery: 'Toppling Goliath', type: 'stout', origin: 'archive', onTap: false, isPromo: false, isNotBeer: false, abv: 12.0, ibu: 45, og: 30, price: 2500, rating: 5.0, image: '', desc: 'Один из лучших стаутов в мире. Выпит.' },
+  { id: 301, name: 'Pliny the Younger', brewery: 'Russian River', type: 'ipa', origin: 'soon', onTap: false, isPromo: false, isNotBeer: false, abv: 10.25, ibu: 90, og: 20, price: 1200, rating: 5.0, image: '', desc: 'Тройной IPA. Ожидается поставка.' },
+  { id: 302, name: 'Double Daisy Cutter', brewery: 'Half Acre', type: 'pale', origin: 'soon', onTap: false, isPromo: false, isNotBeer: false, abv: 8.0, ibu: 60, og: 17, price: 650, rating: 4.6, image: '', desc: 'Мощный пейл эль на подходе.' }
 ];
+
+MOCK_ITEMS.forEach(item => {
+  if (item.isPromo) {
+    const discount = Math.random() * 0.25 + 0.05; // 5% to 30%
+    item.oldPrice = Math.round(item.price / (1 - discount) / 10) * 10;
+  }
+});
 
 // =======================
 // 3. ВЕКТОРНЫЕ ЗАГЛУШКИ
@@ -258,7 +269,7 @@ const BeerBubblesCanvas = () => {
     // и идёт до очень большого числа. Каждый пузырь плывёт вверх в мировых координатах.
     // На экране рисуем только те, что попадают в viewport с учётом scrollTop.
     const WORLD_HEIGHT = 20000;
-    const bubbles = Array.from({ length: 1100 }).map(() => ({
+    const bubbles = Array.from({ length: 2500 }).map(() => ({
       x: Math.random() * window.innerWidth,
       worldY: Math.random() * WORLD_HEIGHT,
       size: Math.random() * 5 + 1.2,
@@ -266,7 +277,7 @@ const BeerBubblesCanvas = () => {
       speed: Math.random() * 0.4 + 0.1,
       drift: Math.random() * 0.5,
       phase: Math.random() * Math.PI * 2,
-      opacity: Math.random() * 0.4 + 0.12,
+      opacity: Math.random() * 0.5 + 0.25,
       popping: false,
       popFrame: 0,
     }));
@@ -410,65 +421,88 @@ const FoamBubblesCanvas = () => {
 // 5. PRODUCT CARD — memoized to prevent re-rendering all 70 cards on every cart update
 // =======================
 const ProductCard = React.memo(function ProductCard({ item, qty, index, accentColor, accentContrast, onSelect, onUpdateCart }) {
+  const isArchive = item.origin === 'archive';
+  const isSoon = item.origin === 'soon';
+  const isOverlay = isArchive || isSoon;
+  const overlayText = isArchive ? 'Закончилось' : (isSoon ? 'Скоро' : '');
+
   return (
-    <div onClick={() => onSelect(item)}
-      className="group relative w-full rounded-[24px] overflow-hidden cursor-pointer active:scale-[0.98] transition-transform liquid-glass"
+    <div onClick={() => !isOverlay && onSelect(item)}
+      className={`group relative w-full rounded-[24px] overflow-hidden transition-transform liquid-glass ${!isOverlay ? 'cursor-pointer active:scale-[0.98]' : ''}`}
       style={{
         animation: `float-up 280ms cubic-bezier(0.23, 1, 0.32, 1) ${Math.min(index * 40, 320)}ms both`,
       }}>
-      {!item.isNotBeer && (
-        <div className="flex items-center justify-between px-3 pt-3 pb-1">
-          <span className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>{item.brewery}</span>
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px]" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
-            <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
-            <span className="font-display text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.9) }}>{item.rating}</span>
+      
+      {isOverlay && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-4">
+          <div className="liquid-glass font-display font-black text-[15px] px-5 py-2.5 rounded-[16px] shadow-xl border border-white/50 tracking-[-0.01em]" style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: '#18181b' }}>
+            {overlayText}
           </div>
         </div>
       )}
-      <div className="flex items-center justify-center h-[130px] pt-1">
-        <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
-      </div>
-      <div className="p-3 pt-1.5">
-        <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
+
+      <div className={isOverlay ? "opacity-60 blur-[6px] grayscale-[0.2]" : ""} style={isOverlay ? { WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)', willChange: 'transform' } : {}}>
         {!item.isNotBeer && (
-          <div className="flex flex-wrap gap-1 mb-2.5">
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% OG</span>
-            {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
+          <div className="flex items-center justify-between px-3 pt-3 pb-1">
+            <span className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>{item.brewery}</span>
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px]" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
+              <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
+              <span className="font-display text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.9) }}>{item.rating}</span>
+            </div>
           </div>
         )}
-        <div className="flex items-center justify-between">
-          <span className="font-black text-[16px]" style={{ color: accentContrast }}>{item.price} ₽</span>
-          <div className="h-8 flex items-center justify-end shrink-0" style={{ minWidth: '86px' }}>
-            <div className="rounded-full liquid-glass overflow-hidden cursor-pointer"
-                 style={{ 
-                   transition: 'all 400ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 1000ms ease',
-                   width: qty === 0 ? '32px' : '84px',
-                   height: '32px',
-                   padding: qty === 0 ? '0px' : '4px',
-                   backgroundColor: qty === 0 ? hexToRgba(accentColor, 0.15) : 'transparent',
-                 }}
-                 onClick={(e) => {
-                   if (qty === 0) onUpdateCart(e, item, 1);
-                   else e.stopPropagation();
-                 }}>
-              
-              <div className="relative w-full h-full flex items-center justify-center">
-                {/* Single Plus for qty 0 */}
-                <div className="absolute inset-0 flex items-center justify-center transition-all duration-300" style={{ opacity: qty === 0 ? 1 : 0, transform: qty === 0 ? 'scale(1)' : 'scale(0.5)', pointerEvents: qty === 0 ? 'auto' : 'none' }}>
-                  <Plus size={16} strokeWidth={2.5} style={{ color: accentContrast }} />
-                </div>
+        <div className="flex items-center justify-center h-[130px] pt-1">
+          <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
+        </div>
+        <div className="p-3 pt-1.5">
+          <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
+          {!item.isNotBeer && (
+            <div className="flex flex-wrap gap-1 mb-2.5">
+              <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
+              <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% OG</span>
+              {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
+            </div>
+          )}
+          <div className="flex items-end justify-between">
+            <div className="flex flex-col">
+              {item.isPromo && item.oldPrice && (
+                <span className="font-bold text-[11px] line-through opacity-60 mb-0.5" style={{ color: accentContrast }}>{item.oldPrice} ₽</span>
+              )}
+              <span className="font-black text-[16px] leading-none" style={{ color: accentContrast }}>{item.price} ₽</span>
+            </div>
+            {!isOverlay && (
+              <div className="h-8 flex items-center justify-end shrink-0" style={{ minWidth: '86px' }}>
+                <div className="rounded-full liquid-glass overflow-hidden cursor-pointer"
+                     style={{ 
+                       transition: 'all 400ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 1000ms ease',
+                       width: qty === 0 ? '32px' : '84px',
+                       height: '32px',
+                       padding: qty === 0 ? '0px' : '4px',
+                       backgroundColor: qty === 0 ? hexToRgba(accentColor, 0.15) : 'transparent',
+                     }}
+                     onClick={(e) => {
+                       if (qty === 0) onUpdateCart(e, item, 1);
+                       else e.stopPropagation();
+                     }}>
+                  
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    {/* Single Plus for qty 0 */}
+                    <div className="absolute inset-0 flex items-center justify-center transition-all duration-300" style={{ opacity: qty === 0 ? 1 : 0, transform: qty === 0 ? 'scale(1)' : 'scale(0.5)', pointerEvents: qty === 0 ? 'auto' : 'none' }}>
+                      <Plus size={16} strokeWidth={2.5} style={{ color: accentContrast }} />
+                    </div>
 
-                {/* Counter for qty > 0 */}
-                <div className="absolute inset-0 flex items-center justify-between transition-all duration-300 w-[76px]" style={{ opacity: qty > 0 ? 1 : 0, transform: qty > 0 ? 'scale(1)' : 'scale(0.9)', pointerEvents: qty > 0 ? 'auto' : 'none' }}>
-                  <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, -1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}><Minus size={12} strokeWidth={3} style={{ color: accentContrast }} /></button>
-                  <span className="text-[12px] font-black w-4 text-center tabular-nums" style={{ color: accentContrast }}>{qty}</span>
-                  <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, 1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
-                    <Plus size={12} strokeWidth={3} style={{ color: accentContrast }} />
-                  </button>
+                    {/* Counter for qty > 0 */}
+                    <div className="absolute inset-0 flex items-center justify-between transition-all duration-300 w-[76px]" style={{ opacity: qty > 0 ? 1 : 0, transform: qty > 0 ? 'scale(1)' : 'scale(0.9)', pointerEvents: qty > 0 ? 'auto' : 'none' }}>
+                      <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, -1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}><Minus size={12} strokeWidth={3} style={{ color: accentContrast }} /></button>
+                      <span className="text-[12px] font-black w-4 text-center tabular-nums" style={{ color: accentContrast }}>{qty}</span>
+                      <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, 1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
+                        <Plus size={12} strokeWidth={3} style={{ color: accentContrast }} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -504,8 +538,8 @@ export default function App() {
   const isStyleFilterDisabled = activeOrigin?.id === 'not_beer';
 
   const targetAccentColor = useMemo(() => {
-    if (activeOrigin?.id === 'not_beer') return '#FDE047';
-    return activeCategory.id === 'all_styles' ? '#FDE047' : activeCategory.color;
+    const isNotBeer = activeOrigin?.id === 'not_beer';
+    return isNotBeer ? '#8B939C' : (activeCategory.id === 'all_styles' ? '#FDE047' : activeCategory.color);
   }, [activeCategory, activeOrigin]);
   const isStout = activeCategory.id === 'stout';
 
@@ -514,10 +548,15 @@ export default function App() {
     let result = MOCK_ITEMS;
     if (activeOrigin.id === 'not_beer') {
       result = result.filter(item => item.isNotBeer);
+    } else if (activeOrigin.id === 'archive') {
+      result = result.filter(item => item.origin === 'archive');
+    } else if (activeOrigin.id === 'soon') {
+      result = result.filter(item => item.origin === 'soon');
     } else {
-      result = result.filter(item => !item.isNotBeer);
+      result = result.filter(item => !item.isNotBeer && item.origin !== 'archive' && item.origin !== 'soon');
       if (activeOrigin.id === 'ru') result = result.filter(b => b.origin === 'ru');
       if (activeOrigin.id === 'import') result = result.filter(b => b.origin === 'import');
+      if (activeOrigin.id === 'collab') result = result.filter(b => b.origin === 'collab');
       if (activeOrigin.id === 'tap') result = result.filter(b => b.onTap);
       if (activeOrigin.id === 'promo') result = result.filter(b => b.isPromo);
       if (activeCategory && activeCategory.id !== 'all_styles') {
@@ -563,12 +602,12 @@ export default function App() {
     setTimeout(() => { setter(false); setClosingSheet(null); }, 220);
   }, []);
 
-  const handleFilterChange = (setter, value, resetCategory = false) => {
-    setter(false);
+  const handleFilterChange = (setSheet, filterFn, isNotBeer = false) => {
+    setSheet(false);
     setIsTransitioning(true);
+    const nextColor = isNotBeer ? '#8B939C' : activeCategory.color;
     setTimeout(() => {
-      if (resetCategory) setActiveCategory(CATEGORIES[0]);
-      value();
+      filterFn();
       setIsTransitioning(false);
     }, 300);
   };
@@ -581,7 +620,7 @@ export default function App() {
   const [isPouring, setIsPouring] = useState(false);
 
   // Synchronized color aliases: accentColor holds during pour (for bg/gradients),
-  // but text contrast updates IMMEDIATELY to the target color so typography re-renders instantly
+  // but we will pass targetAccentColor directly to the cards so they appear with the right theme.
   const accentColor = holdBgColor;
   const accentContrast = useMemo(() => getContrastYIQ(targetAccentColor), [targetAccentColor]);
 
@@ -650,6 +689,7 @@ export default function App() {
           --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
           --ease-in-strong: cubic-bezier(0.32, 0, 0.67, 0);
         }
+        html { scrollbar-gutter: stable; }
         html, body { overflow-x: hidden; width: 100%; max-width: 100vw; }
         body {
           font-family: 'Commissioner', system-ui, -apple-system, sans-serif;
@@ -802,25 +842,29 @@ export default function App() {
 
         {/* Pour animation — permanently mounted, now inside main so it shares the stacking context */}
         <div
-          className="fixed inset-0 z-[28] pointer-events-none overflow-hidden"
+          className="fixed inset-y-0 z-[28] pointer-events-none overflow-hidden"
           style={{
+            left: '-4px',
+            right: '-4px',
+            width: 'calc(100% + 8px)',
             visibility: waveAnimating ? 'visible' : 'hidden',
           }}
         >
           <div
-            className="absolute inset-0"
+            className="absolute inset-x-0 bottom-0 top-[-2px]"
             style={{
               backgroundColor: fillColor || 'transparent',
               transform: pourTransform,
               transition: isPouring ? 'transform 1.4s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+              willChange: 'transform',
             }}
           >
             {/* Wave top (matches header wave perfectly) */}
-            <div className="absolute top-[-21.5px] left-0 w-[200%] h-[22px] flex animate-[wave-smooth_6s_linear_infinite]">
-              <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: fillColor || 'transparent' }}>
+            <div className="absolute top-[-21.5px] left-0 w-[200%] h-[22.5px] flex animate-[wave-smooth_6s_linear_infinite]">
+              <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: fillColor || 'transparent', marginTop: '-0.5px' }}>
                 <path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" />
               </svg>
-              <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: fillColor || 'transparent' }}>
+              <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: fillColor || 'transparent', marginTop: '-0.5px' }}>
                 <path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" />
               </svg>
             </div>
@@ -918,7 +962,7 @@ export default function App() {
                   item={item}
                   qty={getQty(item.id)}
                   index={index}
-                  accentColor={accentColor}
+                  accentColor={targetAccentColor}
                   accentContrast={accentContrast}
                   onSelect={setSelectedItem}
                   onUpdateCart={updateCart}
@@ -976,7 +1020,7 @@ export default function App() {
             </div>
             <div className="relative foam-bg p-6 pb-12 flex flex-col overflow-hidden" style={{ animation: 'none' }}>
               <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
-                backgroundColor: displayBgColor,
+                backgroundColor: targetAccentColor,
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
@@ -991,7 +1035,7 @@ export default function App() {
               <p className="text-zinc-500 text-[13px] mb-6 font-bold relative z-[5]">Введите название пива или пивоварни.</p>
               <textarea value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Название или пивоварня..." className="w-full bg-white/70 border border-white/50 rounded-[20px] p-4 text-zinc-900 text-[15px] font-medium focus:outline-none focus:border-zinc-400 h-28 shadow-sm resize-none no-scrollbar relative z-[5]" />
               <div className="flex gap-2 mt-3 relative z-[5]">
-                <button onClick={() => { setActiveSearchTerm(searchQuery); setShowSearchModal(false); }} disabled={!searchQuery.trim()} className="w-full rounded-[16px] py-4 font-black text-[13px] flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 liquid-glass"><Search size={16} /> ИСКАТЬ</button>
+                <button onClick={() => { setActiveSearchTerm(searchQuery); setShowSearchModal(false); }} disabled={!searchQuery.trim()} className="w-full rounded-[16px] py-4 font-black text-[13px] flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><Search size={16} /> ИСКАТЬ</button>
               </div>
             </div>
           </div>
@@ -1011,32 +1055,32 @@ export default function App() {
             </div>
             <div className="relative flex-1 p-6 pb-0 flex flex-col overflow-hidden foam-bg" style={{ animation: 'none' }}>
               <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
-                backgroundColor: accentColor,
+                backgroundColor: targetAccentColor,
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)'
               }} />
               <FoamBubblesCanvas />
-              <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mb-6 shrink-0 relative z-[5]" />
+              {/* Handle removed */}
               <div className="flex justify-between items-center mb-6 px-1 shrink-0 relative z-[5]">
                 <h2 className="font-display text-[26px] font-black tracking-[-0.02em]">Ваш заказ</h2>
-                <button onClick={() => setShowCart(false)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}><X size={20} /></button>
+                <button onClick={() => setShowCart(false)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><X size={20} /></button>
               </div>
               <div className="flex-1 overflow-y-auto no-scrollbar pb-[180px] px-1 relative z-[5]">
                 <div className="flex flex-col gap-3">
                   {cartItems.map((cartItem) => (
                     <div key={cartItem.item.id} className="flex items-center gap-3 p-3 rounded-[20px] cursor-pointer active:scale-[0.98] transition-transform liquid-glass"
                       onClick={() => { setSelectedItem(cartItem.item); setShowCart(false); }}>
-                      <div className="w-14 h-14 rounded-[12px] flex items-center justify-center shrink-0 p-2 liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}>
-                        <ItemImage item={cartItem.item} className="w-auto h-full max-h-[40px] drop-shadow-md" />
+                      <div className="w-14 h-14 rounded-[12px] flex items-center justify-center shrink-0 p-2" style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}>
+                        <ItemImage item={cartItem.item} className="w-auto h-full max-h-[40px]" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-display text-[17px] font-black text-zinc-800 truncate mb-0.5 tracking-[-0.01em]">{cartItem.item.name}</h4>
                         <span className="text-[13px] font-bold text-zinc-500 block">{cartItem.item.price * cartItem.quantity} ₽</span>
                       </div>
-                      <div className="flex items-center gap-2 rounded-full p-1 liquid-glass" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}>
-                        <button onClick={() => updateCart(null, cartItem.item, -1)} className="w-7 h-7 rounded-full flex items-center justify-center active:scale-90 liquid-glass"><Minus size={14} className="text-zinc-900" /></button>
+                      <div className="flex items-center gap-2 rounded-full p-1 liquid-glass" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
+                        <button onClick={() => updateCart(null, cartItem.item, -1)} className="w-7 h-7 rounded-full flex items-center justify-center active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.2) }}><Minus size={14} className="text-zinc-900" /></button>
                         <span className="text-[12px] font-black text-zinc-900 w-3 text-center">{cartItem.quantity}</span>
-                        <button onClick={() => updateCart(null, cartItem.item, 1)} className="w-7 h-7 rounded-full flex items-center justify-center active:scale-90" style={{ backgroundColor: hexToRgba(accentColor, 0.3) }}>
+                        <button onClick={() => updateCart(null, cartItem.item, 1)} className="w-7 h-7 rounded-full flex items-center justify-center active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.3) }}>
                           <Plus size={14} style={{ color: accentContrast }} />
                         </button>
                       </div>
@@ -1046,14 +1090,14 @@ export default function App() {
               </div>
               <div className="absolute bottom-0 left-0 w-full z-20 pointer-events-none px-4 pb-5 pt-8">
                 <div className="absolute inset-0 bg-gradient-to-t from-white/90 to-transparent pointer-events-none" />
-                <div className="relative w-full p-4 rounded-[28px] shadow-2xl liquid-glass pointer-events-auto" style={{ border: '1px solid rgba(255,255,255,0.6)' }}>
+                <div className="relative w-full p-4 rounded-[28px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] liquid-glass pointer-events-auto" style={{ border: '1px solid rgba(255,255,255,0.6)' }}>
                   <div className="flex justify-between items-center mb-4 px-2">
                     <span className="text-zinc-500 font-bold text-[12px] uppercase tracking-widest">Итого</span>
                     <span className="text-2xl font-black text-zinc-900">{cartTotalPrice} ₽</span>
                   </div>
                   <div className="flex gap-2">
-                    <button className="flex-1 flex items-center justify-center gap-2 py-4 rounded-[20px] font-black text-[13px] active:scale-[0.98] liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.1) }}><CalendarCheck size={16} /> БРОНЬ</button>
-                    <button className="flex-1 flex items-center justify-center gap-2 py-4 rounded-[20px] font-black text-[13px] active:scale-[0.98] liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.3), color: accentContrast }}>
+                    <button className="flex-1 flex items-center justify-center gap-2 py-4 rounded-[20px] font-black text-[13px] active:scale-[0.98] liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.1) }}><CalendarCheck size={16} /> БРОНЬ</button>
+                    <button className="flex-1 flex items-center justify-center gap-2 py-4 rounded-[20px] font-black text-[13px] active:scale-[0.98] liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.3), color: accentContrast }}>
                       <Truck size={16} /> ДОСТАВКА
                     </button>
                   </div>
@@ -1090,8 +1134,7 @@ export default function App() {
                 <FoamBubblesCanvas />
                 <button onClick={closeDetail} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} style={{ color: itemColor }} /></button>
                 <div className="overflow-y-auto no-scrollbar flex-1 pb-32 relative z-[5]">
-                  {/* Swipe indicator */}
-                  <div className="w-10 h-1 bg-zinc-400/40 rounded-full mx-auto mt-2 mb-1" />
+                  {/* Swipe indicator removed */}
                   {/* Full-width image */}
                   <div className="w-full h-[280px] flex items-center justify-center relative">
                     <ItemImage item={selectedItem} className="w-auto h-[85%] drop-shadow-2xl relative z-[2]" />
@@ -1170,7 +1213,7 @@ export default function App() {
             </div>
             <div className="relative flex-1 foam-bg p-6 pb-12 overflow-hidden" style={{ animation: 'none' }}>
               <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
-                backgroundColor: displayBgColor,
+                backgroundColor: targetAccentColor,
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
@@ -1184,11 +1227,20 @@ export default function App() {
                   const active = activeOrigin?.id === origin.id;
                   return (
                     <button onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin))}
-                      className={`flex items-start gap-3 p-4 rounded-[20px] text-left w-full mb-2.5 ${active ? 'shadow-sm' : 'liquid-glass'}`}
-                      style={active ? { backgroundColor: hexToRgba(accentColor, 0.35), border: `1px solid ${hexToRgba(accentColor, 0.5)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
+                      className={`flex items-center gap-3 p-4 rounded-[20px] text-left w-full mb-2.5 ${active ? 'shadow-sm' : 'liquid-glass'}`}
+                      style={active ? { backgroundColor: hexToRgba(targetAccentColor, 0.35), border: `1px solid ${hexToRgba(targetAccentColor, 0.5)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
+                      <div className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" style={{
+                        background: 'rgba(255,255,255,0.08)',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.1)'
+                      }}>
+                        {origin.icon && <origin.icon size={20} className="text-white drop-shadow-sm" />}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <span className={`font-black text-[13px] block ${active ? 'text-zinc-900' : 'text-zinc-600'}`}>Всё</span>
-                        <span className="text-[9px] font-medium text-zinc-400 block mt-0.5">Все позиции каталога</span>
+                        <span className={`text-[9px] font-medium block mt-0.5 ${active ? 'text-zinc-900/60' : 'text-zinc-600/60'}`}>Все позиции каталога</span>
                       </div>
                     </button>
                   );
@@ -1199,8 +1251,17 @@ export default function App() {
                     const active = activeOrigin?.id === origin.id;
                     return (
                       <button key={origin.id} onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin), origin.id === 'not_beer')}
-                        className={`flex items-start gap-3 p-4 rounded-[20px] text-left ${active ? 'shadow-sm' : 'liquid-glass'}`}
-                        style={active ? { backgroundColor: hexToRgba(accentColor, 0.35), border: `1px solid ${hexToRgba(accentColor, 0.5)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
+                        className={`flex items-center gap-3 p-4 rounded-[20px] text-left ${active ? 'shadow-sm' : 'liquid-glass'}`}
+                        style={active ? { backgroundColor: hexToRgba(targetAccentColor, 0.35), border: `1px solid ${hexToRgba(targetAccentColor, 0.5)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
+                        <div className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" style={{
+                          background: 'rgba(255,255,255,0.08)',
+                          backdropFilter: 'blur(8px)',
+                          WebkitBackdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.1)'
+                        }}>
+                          {origin.icon && <origin.icon size={20} className="text-white drop-shadow-sm" />}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <span className={`font-black text-[12px] block ${active ? 'text-zinc-900' : 'text-zinc-600'}`}>{origin.name}</span>
                         </div>
@@ -1227,7 +1288,7 @@ export default function App() {
             </div>
             <div className="relative flex-1 foam-bg p-6 pb-12 overflow-hidden" style={{ animation: 'none' }}>
               <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
-                backgroundColor: displayBgColor,
+                backgroundColor: targetAccentColor,
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
@@ -1238,11 +1299,11 @@ export default function App() {
                 {/* Любой стиль */}
                 <button onClick={() => handleFilterChange(setShowCategorySheet, () => setActiveCategory(ALL_CATEGORIES[0]))}
                   className={`flex items-start gap-3 p-4 rounded-[20px] text-left ${activeCategory.id === 'all_styles' ? 'shadow-sm' : 'liquid-glass'}`}
-                  style={activeCategory.id === 'all_styles' ? { backgroundColor: hexToRgba('#FDE047', 0.35), border: `1px solid ${hexToRgba('#FDE047', 0.5)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
-                  <div className="w-5 h-5 rounded-full shrink-0 shadow-sm border border-black/10 mt-0.5" style={{ backgroundColor: '#FDE047' }} />
+                  style={activeCategory.id === 'all_styles' ? { backgroundColor: hexToRgba(targetAccentColor, 0.35), border: `1px solid ${hexToRgba(targetAccentColor, 0.5)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
+                  <div className="w-5 h-5 rounded-full shrink-0 shadow-sm border border-black/10 mt-0.5" style={{ backgroundColor: targetAccentColor }} />
                   <div className="flex-1 min-w-0">
                     <span className={`font-black text-[13px] block ${activeCategory.id === 'all_styles' ? 'text-zinc-900' : 'text-zinc-600'}`}>Любой</span>
-                    <span className="text-[9px] font-medium text-zinc-400 block mt-0.5">Все стили пива</span>
+                    <span className={`text-[9px] font-medium block mt-0.5 ${activeCategory.id === 'all_styles' ? 'text-zinc-900/60' : 'text-zinc-600/60'}`}>Все стили пива</span>
                   </div>
                 </button>
                 {/* Groups */}
@@ -1251,11 +1312,11 @@ export default function App() {
                   return (
                     <button key={group.group} onClick={() => handleFilterChange(setShowCategorySheet, () => setActiveCategory(group.items[0]))}
                       className={`flex items-start gap-3 p-4 rounded-[20px] text-left ${groupActive ? 'shadow-sm' : 'liquid-glass'}`}
-                      style={groupActive ? { backgroundColor: hexToRgba(group.color, 0.35), border: `1px solid ${hexToRgba(group.color, 0.5)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
+                      style={groupActive ? { backgroundColor: hexToRgba(group.color, 0.35), border: `1px solid ${hexToRgba(group.color, 0.5)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
                       <div className="w-5 h-5 rounded-full shrink-0 shadow-sm border border-black/10 mt-0.5" style={{ backgroundColor: group.color }} />
                       <div className="flex-1 min-w-0">
                         <span className={`font-black text-[12px] block ${groupActive ? 'text-zinc-900' : 'text-zinc-600'}`}>{group.group}</span>
-                        <span className="text-[9px] font-medium text-zinc-400 block mt-0.5 line-clamp-2">{group.items.map(c => c.name).join(' / ')}</span>
+                        <span className={`text-[9px] font-medium block mt-0.5 line-clamp-2 ${groupActive ? 'text-zinc-900/60' : 'text-zinc-600/60'}`}>{group.items.map(c => c.name).join(' / ')}</span>
                       </div>
                     </button>
                   );
@@ -1269,18 +1330,39 @@ export default function App() {
       {showLocationSheet && (
         <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowLocationSheet(false)} style={{ animation: 'fade-in 280ms cubic-bezier(0.23, 1, 0.32, 1)' }} />
-          <div className="relative bg-[#FDFCF8] rounded-t-[32px] p-6 pb-12" style={{ animation: 'slide-up-glass 340ms cubic-bezier(0.32, 0.72, 0, 1) both' }}>
-            <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mb-6"></div>
-            <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-6 px-1">Локация</h3>
-            <div className="flex flex-col gap-3">
-              {LOCATIONS.map(loc => (
-                <button key={loc.id} onClick={() => { setActiveLocation(loc); setShowLocationSheet(false); }}
-                  className={`flex flex-col items-start p-5 rounded-[20px] transition-all duration-1000 ${activeLocation.id === loc.id ? 'shadow-md' : 'liquid-glass shadow-sm'}`}
-                  style={activeLocation.id === loc.id ? { backgroundColor: hexToRgba(accentColor, 0.4), border: `1px solid ${hexToRgba(accentColor, 0.6)}` } : { backgroundColor: hexToRgba(accentColor, 0.15) }}>
-                  <span className={`text-[9px] font-black uppercase tracking-widest mb-1 ${activeLocation.id === loc.id ? 'text-zinc-800' : 'text-zinc-500'}`}>{loc.area}</span>
-                  <span className="font-black text-[18px] text-zinc-900">{loc.address}</span>
-                </button>
-              ))}
+          <div className="relative flex flex-col max-h-[85vh]" style={{ animation: 'slide-up-glass 340ms cubic-bezier(0.32, 0.72, 0, 1) both' }}>
+            <div className="relative w-full h-[20px] shrink-0 z-[5]" style={{ marginBottom: '-2px' }}>
+              <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-[wave-smooth_6s_linear_infinite]">
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+                <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full fill-[#FFF8E7]"><path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" /></svg>
+              </div>
+            </div>
+            <div className="relative foam-bg p-6 pb-12 flex flex-col overflow-hidden" style={{ animation: 'none' }}>
+              <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
+                backgroundColor: displayBgColor,
+                WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
+                maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
+              }} />
+              <FoamBubblesCanvas />
+              <button onClick={() => setShowLocationSheet(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
+              
+              <div className="flex items-center gap-3 mb-6 relative z-[5]">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass">
+                  <MapPin size={20} strokeWidth={2.5} className="text-zinc-700" />
+                </div>
+                <h3 className="font-display text-[26px] font-black tracking-[-0.02em]">Локация</h3>
+              </div>
+              
+              <div className="flex flex-col gap-3 relative z-[5]">
+                {LOCATIONS.map(loc => (
+                  <button key={loc.id} onClick={() => { setActiveLocation(loc); setShowLocationSheet(false); }}
+                    className={`flex flex-col items-start p-5 rounded-[20px] transition-all duration-1000 ${activeLocation.id === loc.id ? 'shadow-md' : 'liquid-glass shadow-sm'}`}
+                    style={activeLocation.id === loc.id ? { backgroundColor: hexToRgba(targetAccentColor, 0.4), border: `1px solid ${hexToRgba(targetAccentColor, 0.6)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
+                    <span className={`text-[9px] font-black uppercase tracking-widest mb-1 ${activeLocation.id === loc.id ? 'text-zinc-800' : 'text-zinc-500'}`}>{loc.area}</span>
+                    <span className="font-black text-[18px] text-zinc-900">{loc.address}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
