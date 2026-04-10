@@ -250,6 +250,15 @@ const ItemImage = ({ item, className }) => {
   return <img src="/bottle.png" alt={item.name} className={className} style={{ objectFit: 'contain' }} draggable={false} />;
 };
 
+// Литраж: ∞ для крана, 0.33 для импорта/крепкого, 0.5 — стандарт, 0.7 — barleywine/BA/RIS
+const getVolumeLabel = (item) => {
+  if (item.isNotBeer) return null;
+  if (item.onTap) return '∞ Л';
+  if (item.type === 'barleywine' || item.type === 'ris' || item.type === 'barrel_aged') return '0.7 Л';
+  if (item.origin === 'import' || item.abv >= 9) return '0.33 Л';
+  return '0.5 Л';
+};
+
 // =======================
 // 4. ПУЗЫРЬКИ
 // =======================
@@ -259,83 +268,111 @@ const BeerBubblesCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const setSize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     setSize();
     window.addEventListener('resize', setSize);
-    // Пузыри живут в "мировых" координатах — worldY отсчитывается от 0 (верх контента)
-    // и идёт до очень большого числа. Каждый пузырь плывёт вверх в мировых координатах.
-    // На экране рисуем только те, что попадают в viewport с учётом scrollTop.
-    const WORLD_HEIGHT = 20000;
-    const bubbles = Array.from({ length: 2500 }).map(() => ({
-      x: Math.random() * window.innerWidth,
-      worldY: Math.random() * WORLD_HEIGHT,
-      size: Math.random() * 5 + 1.2,
-      baseSize: 0,
-      speed: Math.random() * 0.4 + 0.1,
-      drift: Math.random() * 0.5,
-      phase: Math.random() * Math.PI * 2,
-      opacity: Math.random() * 0.5 + 0.25,
-      popping: false,
-      popFrame: 0,
-    }));
-    bubbles.forEach(b => { b.baseSize = b.size; });
+
+    // Dynamic wave line: measured from real header bottom (wave position).
+    // Fallback 280 while header isn't mounted yet.
+    let waveLine = 280;
+    const measureWave = () => {
+      const header = document.querySelector('header');
+      if (header) {
+        const rect = header.getBoundingClientRect();
+        waveLine = Math.max(0, rect.bottom - 6);
+      }
+    };
+    measureWave();
+    const ro = new ResizeObserver(measureWave);
+    const headerEl = document.querySelector('header');
+    if (headerEl) ro.observe(headerEl);
+    window.addEventListener('resize', measureWave);
+
+    const makeBubble = (spawnAtBottom = false) => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      return {
+        x: Math.random() * vw,
+        y: spawnAtBottom
+          ? vh + Math.random() * 40
+          : waveLine + Math.random() * Math.max(vh - waveLine, 1),
+        size: Math.random() * 4.5 + 1.2,
+        baseSize: 0,
+        speed: Math.random() * 0.6 + 0.25,
+        drift: Math.random() * 0.6,
+        phase: Math.random() * Math.PI * 2,
+        opacity: Math.random() * 0.45 + 0.3,
+        popping: false,
+        popFrame: 0,
+      };
+    };
+    const bubbles = Array.from({ length: 450 }).map(() => {
+      const b = makeBubble(false);
+      b.baseSize = b.size;
+      return b;
+    });
     let animId;
-    const main = canvas.closest('main') || document.querySelector('main');
     const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const scrollTop = main ? main.scrollTop : 0;
-      const viewTop = scrollTop - 40;
-      const viewBottom = scrollTop + canvas.height + 40;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      ctx.clearRect(0, 0, vw, vh);
       bubbles.forEach(b => {
-        b.worldY -= b.speed;
-        b.x += Math.sin(b.phase) * (b.drift * 0.1);
-        b.phase += 0.012;
-        if (b.worldY < -40) { b.worldY = WORLD_HEIGHT; b.x = Math.random() * canvas.width; }
-        if (b.x < -20) b.x = canvas.width + 20;
-        if (b.x > canvas.width + 20) b.x = -20;
-        if (b.worldY >= viewTop && b.worldY <= viewBottom) {
-          const screenY = b.worldY - scrollTop;
-          const waveLine = 270;
-          // Пузырь долетел до волны — начинаем лопаться
-          if (screenY < waveLine && !b.popping) {
-            b.popping = true;
-            b.popFrame = 0;
-          }
-          if (b.popping) {
-            b.popFrame++;
-            const popDuration = 15;
-            const t = b.popFrame / popDuration;
-            if (t >= 1) {
-              b.worldY = WORLD_HEIGHT; b.x = Math.random() * canvas.width;
-              b.popping = false; b.popFrame = 0; b.size = b.baseSize;
-              return;
-            }
-            // Рисуем лопанье только ниже линии волны
-            const popSize = b.baseSize * (1 + t * 1.2);
-            const drawY = Math.max(screenY, waveLine);
-            const popAlpha = b.opacity * (1 - t);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${popAlpha})`;
-            ctx.lineWidth = 0.8;
-            ctx.beginPath();
-            ctx.arc(b.x, drawY, popSize, 0, Math.PI * 2);
-            ctx.stroke();
+        if (b.popping) {
+          b.popFrame++;
+          const popDuration = 15;
+          const t = b.popFrame / popDuration;
+          if (t >= 1) {
+            const nb = makeBubble(true);
+            nb.baseSize = nb.size;
+            Object.assign(b, nb);
             return;
           }
-          // Не рисовать пузырь выше волны
-          if (screenY < waveLine) return;
-          ctx.fillStyle = `rgba(255, 255, 255, ${b.opacity})`;
+          const popSize = b.baseSize * (1 + t * 1.2);
+          const popAlpha = b.opacity * (1 - t);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${popAlpha})`;
+          ctx.lineWidth = 0.8;
           ctx.beginPath();
-          ctx.arc(b.x, screenY, b.size, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.arc(b.x, Math.max(b.y, waveLine), popSize, 0, Math.PI * 2);
+          ctx.stroke();
+          return;
         }
+        b.y -= b.speed;
+        b.x += Math.sin(b.phase) * (b.drift * 0.1);
+        b.phase += 0.012;
+        if (b.x < -20) b.x = vw + 20;
+        if (b.x > vw + 20) b.x = -20;
+        if (b.y < waveLine) {
+          b.popping = true;
+          b.popFrame = 0;
+          return;
+        }
+        if (b.y > vh + 40) {
+          b.y = vh + Math.random() * 30;
+          b.x = Math.random() * vw;
+        }
+        ctx.fillStyle = `rgba(255, 255, 255, ${b.opacity})`;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+        ctx.fill();
       });
       animId = requestAnimationFrame(animate);
     };
     animId = requestAnimationFrame(animate);
-    return () => { window.removeEventListener('resize', setSize); cancelAnimationFrame(animId); };
+    return () => {
+      window.removeEventListener('resize', setSize);
+      window.removeEventListener('resize', measureWave);
+      ro.disconnect();
+      cancelAnimationFrame(animId);
+    };
   }, []);
   return <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 29 }} />;
 };
@@ -434,14 +471,20 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
       }}>
       
       {isOverlay && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center p-4">
-          <div className="liquid-glass font-display font-black text-[15px] px-5 py-2.5 rounded-[16px] shadow-xl border border-white/50 tracking-[-0.01em]" style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: '#18181b' }}>
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
+          <div className="font-display font-black text-[15px] px-5 py-2.5 rounded-[16px] border border-white/60 tracking-[-0.01em]" style={{
+            backgroundColor: 'rgba(255,255,255,0.55)',
+            color: '#18181b',
+            backdropFilter: 'blur(22px) saturate(1.2)',
+            WebkitBackdropFilter: 'blur(22px) saturate(1.2)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.5)'
+          }}>
             {overlayText}
           </div>
         </div>
       )}
 
-      <div className={isOverlay ? "opacity-60 blur-[6px] grayscale-[0.2]" : ""} style={isOverlay ? { WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)', willChange: 'transform' } : {}}>
+      <div className={isOverlay ? "blur-[4px]" : ""} style={isOverlay ? { WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)', willChange: 'transform' } : {}}>
         {!item.isNotBeer && (
           <div className="flex items-center justify-between px-3 pt-3 pb-1">
             <span className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>{item.brewery}</span>
@@ -458,6 +501,7 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
           <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
           {!item.isNotBeer && (
             <div className="flex flex-wrap gap-1 mb-2.5">
+              <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{getVolumeLabel(item)}</span>
               <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
               <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% OG</span>
               {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
@@ -526,6 +570,7 @@ export default function App() {
   const [showCategorySheet, setShowCategorySheet] = useState(false);
   const [showOriginSheet, setShowOriginSheet] = useState(false);
   const [showCart, setShowCart] = useState(false);
+  const [detailFromCart, setDetailFromCart] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -594,8 +639,15 @@ export default function App() {
 
   const closeDetail = useCallback(() => {
     setClosingDetail(true);
-    setTimeout(() => { setSelectedItem(null); setClosingDetail(false); }, 220);
-  }, []);
+    setTimeout(() => {
+      setSelectedItem(null);
+      setClosingDetail(false);
+      if (detailFromCart) {
+        setShowCart(true);
+        setDetailFromCart(false);
+      }
+    }, 220);
+  }, [detailFromCart]);
 
   const closeSheet = useCallback((sheetName, setter) => {
     setClosingSheet(sheetName);
@@ -688,7 +740,13 @@ export default function App() {
           --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
           --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
           --ease-in-strong: cubic-bezier(0.32, 0, 0.67, 0);
+          /* Safe area (iOS / Telegram) */
+          --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-top, 0px));
+          --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom, 0px));
         }
+        /* Telegram mini-app tweaks */
+        * { -webkit-touch-callout: none; }
+        img { -webkit-user-drag: none; user-drag: none; }
         html { scrollbar-gutter: stable; }
         html, body { overflow-x: hidden; width: 100%; max-width: 100vw; }
         body {
@@ -806,14 +864,14 @@ export default function App() {
           <div className="absolute inset-0 bg-[#EDD9AB]" />
           <div className="absolute inset-0 foam-bg" style={{ animation: 'none' }} />
           <FoamBubblesCanvas />
-          {/* Стекломорфизм контейнер — очень прозрачный, пузыри видны сквозь него */}
+          {/* Стекломорфизм контейнер — более выразительный, но пузыри видны сквозь него */}
           <div className="relative z-10 flex flex-col items-center w-full max-w-[340px] p-8 pt-12 pb-10 rounded-[32px]"
             style={{
-              background: 'rgba(255,255,255,0.04)',
-              backdropFilter: 'blur(2px)',
-              WebkitBackdropFilter: 'blur(2px)',
-              border: '1px solid rgba(255,255,255,0.22)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
+              background: 'rgba(255,248,231,0.32)',
+              backdropFilter: 'blur(10px) saturate(1.2)',
+              WebkitBackdropFilter: 'blur(10px) saturate(1.2)',
+              border: '1px solid rgba(255,255,255,0.55)',
+              boxShadow: '0 10px 40px rgba(120,80,20,0.12), inset 0 1px 0 rgba(255,255,255,0.55)',
             }}>
             <div className="w-[80px] h-[80px] mb-5 rounded-full shadow-lg flex items-center justify-center bg-white border-[3px] border-white/60">
               <div className="font-logo text-[13px] leading-[1.1] flex flex-col items-center pt-0.5" style={{ color: '#C4A265' }}>
@@ -872,7 +930,7 @@ export default function App() {
         </div>
 
         <BeerBubblesCanvas />
-        <header ref={headerRef} className="w-full relative">
+        <header ref={headerRef} className="w-full relative" style={{ paddingTop: 'var(--safe-top)' }}>
           <div className="foam-bg pt-4 px-4 pb-6 relative overflow-hidden z-[20]">
             <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
               backgroundColor: displayBgColor,
@@ -930,10 +988,16 @@ export default function App() {
                 const isActive = sortConfig.key === s.id && sortConfig.direction !== null;
                 return (
                   <button key={s.id} onClick={() => setSortConfig(prev => prev.key === s.id ? { key: s.id, direction: prev.direction === 'desc' ? 'asc' : prev.direction === 'asc' ? null : 'desc' } : { key: s.id, direction: 'desc' })}
-                    className={`flex items-center justify-center py-2 rounded-full text-[10px] font-black transition-all tracking-wide duration-700 liquid-glass-subtle ${isActive ? 'text-zinc-900' : 'text-zinc-900'}`}
+                    className={`flex flex-col items-center justify-center py-1.5 rounded-full text-[10px] font-black transition-all tracking-wide duration-700 liquid-glass-subtle ${isActive ? 'text-zinc-900' : 'text-zinc-900'}`}
                     style={isActive ? { backgroundColor: hexToRgba(accentColor, 0.28), border: `1px solid ${hexToRgba(accentColor, 0.5)}` } : {}}>
-                    {s.label}
-                    {isActive && (sortConfig.direction === 'desc' ? <ChevronDown size={10} className="ml-0.5" /> : <ChevronUp size={10} className="ml-0.5" />)}
+                    <span className="inline-flex flex-col items-stretch">
+                      <span className="leading-none">{s.label}</span>
+                      <span className="block overflow-hidden" style={{ height: isActive ? '7px' : '0px', transition: 'height 320ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
+                        <svg viewBox="0 0 20 6" preserveAspectRatio="none" className="w-full block" style={{ height: '5px', marginTop: '2px', transform: isActive ? 'translateY(0)' : 'translateY(6px)', opacity: isActive ? 1 : 0, transition: 'transform 320ms cubic-bezier(0.23, 1, 0.32, 1), opacity 260ms ease', color: 'currentColor' }}>
+                          <path d={sortConfig.direction === 'desc' ? 'M0,0 L20,0 L10,6 Z' : 'M0,6 L10,0 L20,6 Z'} fill="currentColor" />
+                        </svg>
+                      </span>
+                    </span>
                   </button>
                 );
               })}
@@ -981,7 +1045,7 @@ export default function App() {
       </main>
 
       {cartTotalItems > 0 && (
-        <div className="fixed bottom-0 left-0 w-full z-50 px-4 pb-5 pt-6 pointer-events-none">
+        <div className="fixed bottom-0 left-0 w-full z-50 px-4 pt-6 pointer-events-none" style={{ paddingBottom: 'calc(var(--safe-bottom) + 20px)' }}>
           <div className="absolute inset-0 bg-gradient-to-t from-[#09090B] to-transparent pointer-events-none" style={{ animation: 'cart-gradient-in 1200ms cubic-bezier(0.23, 1, 0.32, 1) both' }} />
           <button onClick={() => setShowCart(true)} className="relative w-full flex items-center justify-between p-4 rounded-[24px] shadow-2xl active:scale-[0.98] pointer-events-auto liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.15), animation: 'cart-rise 1400ms cubic-bezier(0.22, 1, 0.36, 1) both', transformOrigin: 'bottom center', transition: 'transform 180ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
             <div className="flex items-center gap-4">
@@ -1027,8 +1091,8 @@ export default function App() {
               <FoamBubblesCanvas />
               <button onClick={() => setShowSearchModal(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               <div className="flex items-center gap-3 mb-6 relative z-[5]">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass">
-                  <Search size={20} strokeWidth={2.5} className="text-zinc-700" />
+                <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.25), borderColor: hexToRgba(targetAccentColor, 0.4), transition: 'background-color 1000ms ease, border-color 1000ms ease' }}>
+                  <Search size={20} strokeWidth={2.5} style={{ color: targetAccentColor, transition: 'color 1000ms ease' }} />
                 </div>
                 <h2 className="font-display text-[26px] font-black tracking-[-0.02em]">Поиск</h2>
               </div>
@@ -1069,7 +1133,8 @@ export default function App() {
                 <div className="flex flex-col gap-3">
                   {cartItems.map((cartItem) => (
                     <div key={cartItem.item.id} className="flex items-center gap-3 p-3 rounded-[20px] cursor-pointer active:scale-[0.98] transition-transform liquid-glass"
-                      onClick={() => { setSelectedItem(cartItem.item); setShowCart(false); }}>
+                      style={{ boxShadow: 'none' }}
+                      onClick={() => { setDetailFromCart(true); setSelectedItem(cartItem.item); setShowCart(false); }}>
                       <div className="w-14 h-14 rounded-[12px] flex items-center justify-center shrink-0 p-2" style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}>
                         <ItemImage item={cartItem.item} className="w-auto h-full max-h-[40px]" />
                       </div>
@@ -1088,9 +1153,9 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div className="absolute bottom-0 left-0 w-full z-20 pointer-events-none px-4 pb-5 pt-8">
-                <div className="absolute inset-0 bg-gradient-to-t from-white/90 to-transparent pointer-events-none" />
-                <div className="relative w-full p-4 rounded-[28px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] liquid-glass pointer-events-auto" style={{ border: '1px solid rgba(255,255,255,0.6)' }}>
+              <div className="absolute bottom-0 left-0 w-full z-20 pointer-events-none px-4 pt-8" style={{ paddingBottom: 'calc(var(--safe-bottom) + 20px)' }}>
+                <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${hexToRgba(targetAccentColor, 0.9)} 0%, ${hexToRgba(targetAccentColor, 0.5)} 40%, transparent 100%)` }} />
+                <div className="relative w-full p-4 rounded-[28px] liquid-glass pointer-events-auto" style={{ border: '1px solid rgba(255,255,255,0.6)', boxShadow: 'none' }}>
                   <div className="flex justify-between items-center mb-4 px-2">
                     <span className="text-zinc-500 font-bold text-[12px] uppercase tracking-widest">Итого</span>
                     <span className="text-2xl font-black text-zinc-900">{cartTotalPrice} ₽</span>
@@ -1152,6 +1217,7 @@ export default function App() {
                     <h2 className="font-display text-[32px] font-black leading-[1.05] tracking-[-0.02em] mb-3" style={{ color: itemContrast }}>{selectedItem.name}</h2>
                     {!selectedItem.isNotBeer && (
                       <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{getVolumeLabel(selectedItem)}</span>
                         <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.abv}% ABV</span>
                         <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.og}% OG</span>
                         {selectedItem.ibu > 0 && <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.ibu} IBU</span>}
@@ -1339,7 +1405,7 @@ export default function App() {
             </div>
             <div className="relative foam-bg p-6 pb-12 flex flex-col overflow-hidden" style={{ animation: 'none' }}>
               <div className="absolute inset-0 pointer-events-none transition-colors duration-[1000ms]" style={{
-                backgroundColor: displayBgColor,
+                backgroundColor: targetAccentColor,
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
@@ -1347,8 +1413,8 @@ export default function App() {
               <button onClick={() => setShowLocationSheet(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               
               <div className="flex items-center gap-3 mb-6 relative z-[5]">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass">
-                  <MapPin size={20} strokeWidth={2.5} className="text-zinc-700" />
+                <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.25), borderColor: hexToRgba(targetAccentColor, 0.4), transition: 'background-color 1000ms ease, border-color 1000ms ease' }}>
+                  <MapPin size={20} strokeWidth={2.5} style={{ color: targetAccentColor, transition: 'color 1000ms ease' }} />
                 </div>
                 <h3 className="font-display text-[26px] font-black tracking-[-0.02em]">Локация</h3>
               </div>
