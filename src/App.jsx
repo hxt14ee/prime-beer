@@ -281,14 +281,17 @@ const BeerBubblesCanvas = () => {
     setSize();
     window.addEventListener('resize', setSize);
 
-    // Dynamic wave line: measured from real header bottom (wave position).
-    // Fallback 280 while header isn't mounted yet.
-    let waveLine = 280;
+    // Wave line in WORLD (page) coordinates — header bottom from top of main content.
+    // Bubbles live in world coords, so scrolling moves them with the page, not against it.
+    let waveLineWorld = 280;
+    const scrollEl = document.querySelector('main');
     const measureWave = () => {
       const header = document.querySelector('header');
-      if (header) {
-        const rect = header.getBoundingClientRect();
-        waveLine = Math.max(0, rect.bottom - 6);
+      if (header && scrollEl) {
+        const headerRect = header.getBoundingClientRect();
+        const mainRect = scrollEl.getBoundingClientRect();
+        // World Y of the header bottom = its position relative to main top + current scrollTop
+        waveLineWorld = Math.max(0, (headerRect.bottom - mainRect.top) + scrollEl.scrollTop - 6);
       }
     };
     measureWave();
@@ -297,14 +300,22 @@ const BeerBubblesCanvas = () => {
     if (headerEl) ro.observe(headerEl);
     window.addEventListener('resize', measureWave);
 
-    const makeBubble = (spawnAtBottom = false) => {
+    const getScrollTop = () => (scrollEl ? scrollEl.scrollTop : 0);
+
+    // mode: 'spread' = distribute across visible viewport (initial + catch-up respawn)
+    //       'below'  = spawn just below viewport bottom (natural pop respawn)
+    const makeBubble = (mode = 'spread') => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      const scrollTop = getScrollTop();
+      const topBound = Math.max(waveLineWorld + 20, scrollTop);
+      const bottomBound = scrollTop + vh;
+      const worldY = mode === 'below'
+        ? bottomBound + Math.random() * 60
+        : topBound + Math.random() * Math.max(bottomBound - topBound, 1);
       return {
         x: Math.random() * vw,
-        y: spawnAtBottom
-          ? vh + Math.random() * 40
-          : waveLine + Math.random() * Math.max(vh - waveLine, 1),
+        worldY,
         size: Math.random() * 4.5 + 1.2,
         baseSize: 0,
         speed: Math.random() * 0.6 + 0.25,
@@ -316,7 +327,7 @@ const BeerBubblesCanvas = () => {
       };
     };
     const bubbles = Array.from({ length: 450 }).map(() => {
-      const b = makeBubble(false);
+      const b = makeBubble('spread');
       b.baseSize = b.size;
       return b;
     });
@@ -324,6 +335,7 @@ const BeerBubblesCanvas = () => {
     const animate = () => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      const scrollTop = getScrollTop();
       ctx.clearRect(0, 0, vw, vh);
       bubbles.forEach(b => {
         if (b.popping) {
@@ -331,37 +343,44 @@ const BeerBubblesCanvas = () => {
           const popDuration = 15;
           const t = b.popFrame / popDuration;
           if (t >= 1) {
-            const nb = makeBubble(true);
+            const nb = makeBubble('below');
             nb.baseSize = nb.size;
             Object.assign(b, nb);
             return;
           }
           const popSize = b.baseSize * (1 + t * 1.2);
           const popAlpha = b.opacity * (1 - t);
+          const drawY = Math.max(b.worldY - scrollTop, waveLineWorld - scrollTop);
           ctx.strokeStyle = `rgba(255, 255, 255, ${popAlpha})`;
           ctx.lineWidth = 0.8;
           ctx.beginPath();
-          ctx.arc(b.x, Math.max(b.y, waveLine), popSize, 0, Math.PI * 2);
+          ctx.arc(b.x, drawY, popSize, 0, Math.PI * 2);
           ctx.stroke();
           return;
         }
-        b.y -= b.speed;
+        b.worldY -= b.speed;
         b.x += Math.sin(b.phase) * (b.drift * 0.1);
         b.phase += 0.012;
         if (b.x < -20) b.x = vw + 20;
         if (b.x > vw + 20) b.x = -20;
-        if (b.y < waveLine) {
+        if (b.worldY < waveLineWorld) {
           b.popping = true;
           b.popFrame = 0;
           return;
         }
-        if (b.y > vh + 40) {
-          b.y = vh + Math.random() * 30;
-          b.x = Math.random() * vw;
+        // Respawn bubbles that drifted out of the visible area after a big scroll jump.
+        // Spread them across the viewport so they appear immediately, not trickle in from bottom.
+        if (b.worldY < scrollTop - 80 || b.worldY > scrollTop + vh + 200) {
+          const nb = makeBubble('spread');
+          nb.baseSize = nb.size;
+          Object.assign(b, nb);
+          return;
         }
+        const screenY = b.worldY - scrollTop;
+        if (screenY < -40 || screenY > vh + 40) return;
         ctx.fillStyle = `rgba(255, 255, 255, ${b.opacity})`;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+        ctx.arc(b.x, screenY, b.size, 0, Math.PI * 2);
         ctx.fill();
       });
       animId = requestAnimationFrame(animate);
