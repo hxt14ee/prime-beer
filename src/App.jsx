@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search, Star, X, Flame, Droplets, ChevronDown, ChevronUp, ShieldCheck, Check,
@@ -86,7 +86,7 @@ const CATEGORY_GROUPS = [
     ]
   },
   {
-    group: 'СОЛЁНОЕ И ГАСТРОНОМИЧЕСКОЕ', color: '#c43030', items: [
+    group: 'СОЛЁНЫЕ И ГАСТРО', color: '#c43030', items: [
       { id: 'gose', name: 'Classic Gose', color: '#c43030' },
       { id: 'tomato_gose', name: 'Tomato Gose', color: '#c43030' },
       { id: 'culinary', name: 'Culinary / Soup', color: '#c43030' },
@@ -482,91 +482,92 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
   const isOverlay = isArchive || isSoon;
   const overlayText = isArchive ? 'Закончилось' : (isSoon ? 'Скоро' : '');
 
+  // Animate float-up only on first mount, never on re-render (prevents flash on sort)
+  const hasAnimatedRef = useRef(false);
+  const shouldAnimate = !hasAnimatedRef.current;
+  useEffect(() => { hasAnimatedRef.current = true; }, []);
+
   return (
-    <div onClick={() => !isOverlay && onSelect(item)}
-      className={`group relative w-full rounded-[24px] overflow-hidden transition-transform liquid-glass ${!isOverlay ? 'cursor-pointer active:scale-[0.98]' : ''}`}
-      style={{
-        animation: `float-up 280ms cubic-bezier(0.23, 1, 0.32, 1) ${Math.min(index * 40, 320)}ms both`,
-      }}>
-      
-      {isOverlay && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
-          <div className="font-display font-black text-[15px] px-5 py-2.5 rounded-[16px] border border-white/60 tracking-[-0.01em]" style={{
-            backgroundColor: 'rgba(255,255,255,0.55)',
-            color: '#18181b',
-            backdropFilter: 'blur(22px) saturate(1.2)',
-            WebkitBackdropFilter: 'blur(22px) saturate(1.2)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.5)'
-          }}>
-            {overlayText}
+    <div onClick={() => onSelect(item)}
+      className="group relative w-full rounded-[24px] overflow-hidden transition-transform liquid-glass cursor-pointer active:scale-[0.98]"
+      style={shouldAnimate ? { animation: `float-up 280ms cubic-bezier(0.23, 1, 0.32, 1) ${Math.min(index * 40, 320)}ms both` } : undefined}>
+
+      {!item.isNotBeer && (
+        <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-1">
+          <span className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none truncate min-w-0 block"
+            style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>{item.brewery}</span>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px] shrink-0" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
+            <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
+            <span className="font-display text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.9) }}>{item.rating}</span>
           </div>
         </div>
       )}
-
-      <div className={isOverlay ? "blur-[4px]" : ""} style={isOverlay ? { WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)', willChange: 'transform' } : {}}>
-        {!item.isNotBeer && (
-          <div className="flex items-center justify-between px-3 pt-3 pb-1">
-            <span className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>{item.brewery}</span>
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px]" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
-              <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
-              <span className="font-display text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.9) }}>{item.rating}</span>
+      <div className="relative flex items-center justify-center h-[130px] pt-1">
+        <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
+        {isOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <div className="font-display font-black text-[14px] px-5 py-2.5 rounded-[16px] border border-white/70 tracking-[-0.01em] uppercase" style={{
+              backgroundColor: 'rgba(255,255,255,0.35)',
+              color: '#18181b',
+              backdropFilter: 'blur(28px) saturate(1.4)',
+              WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.18), inset 0 1px 1px rgba(255,255,255,0.6)'
+            }}>
+              {overlayText}
             </div>
           </div>
         )}
-        <div className="flex items-center justify-center h-[130px] pt-1">
-          <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
-        </div>
-        <div className="p-3 pt-1.5">
-          <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
-          {!item.isNotBeer && (
-            <div className="flex flex-wrap gap-1 mb-2.5">
-              <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{getVolumeLabel(item)}</span>
-              <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
-              <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% OG</span>
-              {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
-            </div>
-          )}
-          <div className="flex items-end justify-between">
-            <div className="flex flex-col">
-              {item.isPromo && item.oldPrice && (
-                <span className="font-bold text-[11px] line-through opacity-60 mb-0.5" style={{ color: accentContrast }}>{item.oldPrice} ₽</span>
-              )}
-              <span className="font-black text-[16px] leading-none" style={{ color: accentContrast }}>{item.price} ₽</span>
-            </div>
-            {!isOverlay && (
-              <div className="h-8 flex items-center justify-end shrink-0" style={{ minWidth: '86px' }}>
-                <div className="rounded-full liquid-glass overflow-hidden cursor-pointer"
-                     style={{ 
-                       transition: 'all 400ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 1000ms ease',
-                       width: qty === 0 ? '32px' : '84px',
-                       height: '32px',
-                       padding: qty === 0 ? '0px' : '4px',
-                       backgroundColor: qty === 0 ? hexToRgba(accentColor, 0.15) : 'transparent',
-                     }}
-                     onClick={(e) => {
-                       if (qty === 0) onUpdateCart(e, item, 1);
-                       else e.stopPropagation();
-                     }}>
-                  
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    {/* Single Plus for qty 0 */}
-                    <div className="absolute inset-0 flex items-center justify-center transition-all duration-300" style={{ opacity: qty === 0 ? 1 : 0, transform: qty === 0 ? 'scale(1)' : 'scale(0.5)', pointerEvents: qty === 0 ? 'auto' : 'none' }}>
-                      <Plus size={16} strokeWidth={2.5} style={{ color: accentContrast }} />
-                    </div>
+      </div>
+      <div className="p-3 pt-1.5">
+        <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
+        {!item.isNotBeer && (
+          <div className="flex flex-wrap gap-1 mb-2.5">
+            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{getVolumeLabel(item)}</span>
+            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
+            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% OG</span>
+            {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
+          </div>
+        )}
+        <div className="flex items-end justify-between">
+          <div className="flex flex-col">
+            {item.isPromo && item.oldPrice && (
+              <span className="font-bold text-[11px] line-through opacity-60 mb-0.5" style={{ color: accentContrast }}>{item.oldPrice} ₽</span>
+            )}
+            <span className="font-black text-[16px] leading-none" style={{ color: accentContrast }}>{item.price} ₽</span>
+          </div>
+          {!isOverlay && (
+            <div className="h-8 flex items-center justify-end shrink-0" style={{ minWidth: '86px' }}>
+              <div className="rounded-full liquid-glass overflow-hidden cursor-pointer"
+                   style={{
+                     transition: 'all 400ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 1000ms ease',
+                     width: qty === 0 ? '32px' : '84px',
+                     height: '32px',
+                     padding: qty === 0 ? '0px' : '4px',
+                     backgroundColor: qty === 0 ? hexToRgba(accentColor, 0.15) : 'transparent',
+                   }}
+                   onClick={(e) => {
+                     if (qty === 0) onUpdateCart(e, item, 1);
+                     else e.stopPropagation();
+                   }}>
 
-                    {/* Counter for qty > 0 */}
-                    <div className="absolute inset-0 flex items-center justify-between transition-all duration-300 w-[76px]" style={{ opacity: qty > 0 ? 1 : 0, transform: qty > 0 ? 'scale(1)' : 'scale(0.9)', pointerEvents: qty > 0 ? 'auto' : 'none' }}>
-                      <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, -1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}><Minus size={12} strokeWidth={3} style={{ color: accentContrast }} /></button>
-                      <span className="text-[12px] font-black w-4 text-center tabular-nums" style={{ color: accentContrast }}>{qty}</span>
-                      <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, 1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
-                        <Plus size={12} strokeWidth={3} style={{ color: accentContrast }} />
-                      </button>
-                    </div>
+                <div className="relative w-full h-full flex items-center justify-center">
+                  {/* Single Plus for qty 0 */}
+                  <div className="absolute inset-0 flex items-center justify-center transition-all duration-300" style={{ opacity: qty === 0 ? 1 : 0, transform: qty === 0 ? 'scale(1)' : 'scale(0.5)', pointerEvents: qty === 0 ? 'auto' : 'none' }}>
+                    <Plus size={16} strokeWidth={2.5} style={{ color: accentContrast }} />
+                  </div>
+
+                  {/* Counter for qty > 0 */}
+                  <div className="absolute inset-0 flex items-center justify-between transition-all duration-300 w-[76px]" style={{ opacity: qty > 0 ? 1 : 0, transform: qty > 0 ? 'scale(1)' : 'scale(0.9)', pointerEvents: qty > 0 ? 'auto' : 'none' }}>
+                    <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, -1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}><Minus size={12} strokeWidth={3} style={{ color: accentContrast }} /></button>
+                    <span className="text-[12px] font-black w-4 text-center tabular-nums" style={{ color: accentContrast }}>{qty}</span>
+                    <button onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, 1); }} className="w-6 h-6 rounded-full flex items-center justify-center active:scale-[0.88]" style={{ backgroundColor: hexToRgba(accentColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
+                      <Plus size={12} strokeWidth={3} style={{ color: accentContrast }} />
+                    </button>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1006,29 +1007,35 @@ export default function App() {
               {[{ id: 'rating', label: 'Рейтинг' }, { id: 'price', label: 'Цена' }, { id: 'abv', label: 'Крепость' }, { id: 'og', label: 'Плотность' }].map(s => {
                 const isActive = sortConfig.key === s.id && sortConfig.direction !== null;
                 return (
-                  <button key={s.id} onClick={() => setSortConfig(prev => prev.key === s.id ? { key: s.id, direction: prev.direction === 'desc' ? 'asc' : prev.direction === 'asc' ? null : 'desc' } : { key: s.id, direction: 'desc' })}
-                    className={`flex flex-col items-center justify-center py-1.5 rounded-full text-[10px] font-black transition-all tracking-wide duration-700 liquid-glass-subtle ${isActive ? 'text-zinc-900' : 'text-zinc-900'}`}
-                    style={isActive ? { backgroundColor: hexToRgba(accentColor, 0.28), border: `1px solid ${hexToRgba(accentColor, 0.5)}` } : {}}>
-                    <span className="inline-flex flex-col items-stretch">
-                      <span className="leading-none">{s.label}</span>
-                      <span className="block overflow-hidden" style={{ height: isActive ? '7px' : '0px', transition: 'height 320ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
-                        <svg viewBox="0 0 20 6" preserveAspectRatio="none" className="w-full block" style={{ height: '5px', marginTop: '2px', transform: isActive ? 'translateY(0)' : 'translateY(6px)', opacity: isActive ? 1 : 0, transition: 'transform 320ms cubic-bezier(0.23, 1, 0.32, 1), opacity 260ms ease', color: 'currentColor' }}>
-                          <path d={sortConfig.direction === 'desc' ? 'M0,0 L20,0 L10,6 Z' : 'M0,6 L10,0 L20,6 Z'} fill="currentColor" />
-                        </svg>
-                      </span>
-                    </span>
+                  <button key={s.id}
+                    onClick={() => startTransition(() => setSortConfig(prev => prev.key === s.id ? { key: s.id, direction: prev.direction === 'desc' ? 'asc' : prev.direction === 'asc' ? null : 'desc' } : { key: s.id, direction: 'desc' }))}
+                    className="relative flex flex-col items-center justify-center h-[34px] rounded-full text-[10px] font-black tracking-wide liquid-glass-subtle text-zinc-900 overflow-hidden"
+                    style={{
+                      transition: 'background-color 700ms ease, border-color 700ms ease',
+                      backgroundColor: isActive ? hexToRgba(accentColor, 0.28) : undefined,
+                      border: isActive ? `1px solid ${hexToRgba(accentColor, 0.5)}` : undefined,
+                    }}>
+                    <span className="leading-none">{s.label}</span>
+                    <svg width="12" height="6" viewBox="0 0 12 6" fill="none" className="mt-[2px]" style={{
+                      opacity: isActive ? 0.9 : 0,
+                      transform: isActive && sortConfig.direction === 'asc' ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'opacity 260ms ease, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      color: 'currentColor',
+                    }}>
+                      <path d="M1.5 1.5 L6 5 L10.5 1.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </button>
                 );
               })}
             </div>
           </div>
-          {/* Wave on header level — smoothly changes color along with background */}
+          {/* Wave on header level — instant color change matches main bg */}
           <div className="absolute bottom-[-3px] left-0 w-[200%] h-[22px] z-[25] pointer-events-none flex animate-[wave-smooth_6s_linear_infinite]">
-            <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full transition-colors duration-[400ms]" style={{ fill: displayBgColor }}><path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" /></svg>
-            <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full transition-colors duration-[400ms]" style={{ fill: displayBgColor }}><path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" /></svg>
+            <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: displayBgColor, shapeRendering: 'geometricPrecision' }}><path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" /></svg>
+            <svg viewBox="0 0 1200 22" preserveAspectRatio="none" className="w-[50%] h-full" style={{ fill: displayBgColor, shapeRendering: 'geometricPrecision' }}><path d="M0,22 V11 Q150,0 300,11 T600,11 T900,11 T1200,11 V22 Z" /></svg>
           </div>
-          {/* Anti-gap strip */}
-          <div className="absolute bottom-0 left-0 w-full h-[4px] z-[9] transition-colors duration-[400ms]" style={{ backgroundColor: displayBgColor }} />
+          {/* Solid band extends main bg up into the wave area so there's no visible seam */}
+          <div className="absolute bottom-0 left-0 w-full h-[10px] z-[24] pointer-events-none" style={{ backgroundColor: displayBgColor }} />
         </header>
         <div className="px-4 pt-4 pb-[120px] relative z-[30]">
           {activeSearchTerm && (
