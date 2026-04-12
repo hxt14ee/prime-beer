@@ -486,9 +486,15 @@ const FoamBubblesCanvas = React.memo(FoamBubblesCanvas_);
 
 // Memoized logo — prevents re-render/repaint on unrelated state changes
 // (e.g. showSearchBar toggle). Only re-renders when accentColor or storyRead change.
+// GPU layer isolation (translateZ + will-change) keeps the logo on its own compositor
+// layer so backdrop-filter recompositing on the search bar can never cause a flicker.
 const LogoBadge_ = ({ accentColor, storyRead, onOpen }) => {
   return (
-    <div className="relative w-[56px] h-[56px] rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-transform" onClick={onOpen}>
+    <div
+      className="relative w-[56px] h-[56px] rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
+      style={{ willChange: 'transform', transform: 'translateZ(0)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+      onClick={onOpen}
+    >
       {storyRead ? (
         <div className="absolute inset-0 rounded-full border-[2.5px] border-zinc-300" />
       ) : (
@@ -747,12 +753,34 @@ export default function App() {
   // Toggle search bar visibility via DOM — zero React re-renders, zero dropped frames
   const openSearchBar = useCallback(() => {
     showSearchBarRef.current = true;
+    // Measure left content (logo + address) and position search bar to never overlap
+    const headerRow = searchBarRef.current?.parentElement;
+    const leftGroup = headerRow?.firstElementChild;
+    if (leftGroup && searchBarRef.current) {
+      const leftWidth = leftGroup.offsetWidth;
+      searchBarRef.current.style.left = `${leftWidth + 8}px`; // 8px breathing gap
+    }
     if (searchBarRef.current) searchBarRef.current.dataset.open = 'true';
+    // Make search button transparent so bar background is seamless
+    const searchBtn = headerRow?.querySelector('[data-search-btn]');
+    if (searchBtn) searchBtn.dataset.barOpen = 'true';
     searchInputRef.current?.focus({ preventScroll: true });
   }, []);
   const closeSearchBar = useCallback(() => {
     showSearchBarRef.current = false;
-    if (searchBarRef.current) searchBarRef.current.dataset.open = 'false';
+    if (searchBarRef.current) {
+      searchBarRef.current.dataset.open = 'false';
+      // Reset left after close animation finishes
+      setTimeout(() => {
+        if (!showSearchBarRef.current && searchBarRef.current) {
+          searchBarRef.current.style.left = '';
+        }
+      }, 300);
+    }
+    // Restore search button styling
+    const headerRow = searchBarRef.current?.parentElement;
+    const searchBtn = headerRow?.querySelector('[data-search-btn]');
+    if (searchBtn) searchBtn.dataset.barOpen = 'false';
     searchInputRef.current?.blur();
   }, []);
   const [activeSearchTerm, setActiveSearchTerm] = useState("");
@@ -1084,11 +1112,27 @@ export default function App() {
           opacity: 0;
           pointer-events: none;
           transition: clip-path 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms ease-out;
+          /* GPU layer isolation: prevents backdrop-filter recompositing
+             from bleeding into sibling elements (logo flicker fix) */
+          will-change: clip-path;
+          transform: translateZ(0);
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
         }
         .search-bar-reveal[data-open="true"] {
           clip-path: inset(0 0 0 0 round 16px);
           opacity: 1;
           pointer-events: auto;
+        }
+        /* When bar is open, search button becomes transparent so the bar’s
+           glass background runs seamlessly up to the magnifying glass icon */
+        [data-search-btn][data-bar-open="true"] {
+          background: transparent !important;
+          background-color: transparent !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          border-color: transparent !important;
+          box-shadow: none !important;
         }
         /* Age gate exit: backdrop fades + gently blurs out, card zooms up and away
            on top of it — layered exit so the user feels a real "stepping through"
@@ -1207,14 +1251,14 @@ export default function App() {
           <div className="absolute inset-0 bg-[#EDD9AB]" />
           <div className="absolute inset-0 foam-bg" style={{ animation: 'none' }} />
           <FoamBubblesCanvas />
-          {/* Стекломорфизм контейнер — более выразительный, но пузыри видны сквозь него */}
+          {/* Стекломорфизм контейнер — прозрачность 1:1 как у кнопок сортировки/фильтрации (liquid-glass-subtle) */}
           <div className="relative z-10 flex flex-col items-center w-full max-w-[340px] p-8 pt-12 pb-10 rounded-[32px]"
             style={{
-              background: 'rgba(255,248,231,0.32)',
-              backdropFilter: 'blur(10px) saturate(1.2)',
-              WebkitBackdropFilter: 'blur(10px) saturate(1.2)',
-              border: '1px solid rgba(255,255,255,0.55)',
-              boxShadow: '0 10px 40px rgba(120,80,20,0.12), inset 0 1px 0 rgba(255,255,255,0.55)',
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%)',
+              backdropFilter: 'blur(3px)',
+              WebkitBackdropFilter: 'blur(3px)',
+              border: '1px solid rgba(255,255,255,0.5)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.45)',
               animation: ageGateClosing
                 ? 'age-card-out 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards'
                 : undefined,
@@ -1296,7 +1340,7 @@ export default function App() {
             }} />
             <FoamBubblesCanvas />
             <div className="flex justify-between items-center h-[70px] relative z-[50]">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0 relative z-[3]" style={{ willChange: 'transform', transform: 'translateZ(0)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
                 <LogoBadge accentColor={accentColor} storyRead={storyRead} onOpen={openStory} />
                 <button onClick={() => setShowLocationSheet(true)} className="flex flex-col items-start active:opacity-70 text-left ml-1">
                   <span className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest mb-0.5">{activeLocation.area}</span>
@@ -1336,7 +1380,8 @@ export default function App() {
                   openSearchBar();
                 }}
                 className="w-[56px] h-[56px] rounded-full active:scale-95 flex items-center justify-center liquid-glass relative z-[2]"
-                style={{ backgroundColor: hexToRgba(accentColor, 0.15), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
+                data-search-btn data-bar-open="false"
+                style={{ backgroundColor: hexToRgba(accentColor, 0.15), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 300ms ease, background 300ms ease, backdrop-filter 300ms ease, border-color 300ms ease, box-shadow 300ms ease' }}
               >
                 <Search size={22} strokeWidth={2.5} style={{ color: accentColor }} className="transition-colors duration-1000" />
               </button>
@@ -1344,8 +1389,8 @@ export default function App() {
               <div
                 ref={searchBarRef}
                 data-open="false"
-                className="search-bar-reveal absolute right-0 top-1/2 z-[1]"
-                style={{ width: '50%', transform: 'translateY(-50%)' }}
+                className="search-bar-reveal absolute top-1/2 z-[1]"
+                style={{ right: 0, left: 'auto', transform: 'translateY(-50%)' }}
               >
                 <div className="relative flex items-center rounded-[16px] liquid-glass-subtle h-[50px]">
                   <Search size={18} className="absolute left-3.5 text-zinc-500 pointer-events-none" strokeWidth={2.5} />
@@ -1387,7 +1432,7 @@ export default function App() {
                       }
                     }}
                     placeholder="Название или пивоварня..."
-                    className="flex-1 pl-11 pr-10 py-3 bg-transparent text-[14px] font-medium text-zinc-900 placeholder:text-zinc-500 focus:outline-none"
+                    className="flex-1 pl-11 pr-[74px] py-3 bg-transparent text-[14px] font-medium text-zinc-900 placeholder:text-zinc-500 focus:outline-none min-w-0"
                   />
                   <button
                     data-search-clear
@@ -1412,7 +1457,7 @@ export default function App() {
                         });
                       }
                     }}
-                    className="absolute right-14 w-6 h-6 flex items-center justify-center active:scale-[0.88]"
+                    className="absolute right-12 w-6 h-6 flex items-center justify-center active:scale-[0.88]"
                     style={{ opacity: 0, pointerEvents: 'none', transition: 'opacity 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1)' }}
                   ><X size={16} strokeWidth={2} className="text-zinc-500" /></button>
                 </div>
