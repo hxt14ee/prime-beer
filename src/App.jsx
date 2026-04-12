@@ -253,7 +253,7 @@ const ItemImage = ({ item, className }) => {
 // Литраж: ∞ для крана, 0.33 для импорта/крепкого, 0.5 — стандарт, 0.7 — barleywine/BA/RIS
 const getVolumeLabel = (item) => {
   if (item.isNotBeer) return null;
-  if (item.onTap) return '∞ Л';
+  if (item.onTap) return '0.5 Л';
   if (item.type === 'barleywine' || item.type === 'ris' || item.type === 'barrel_aged') return '0.7 Л';
   if (item.origin === 'import' || item.abv >= 9) return '0.33 Л';
   return '0.5 Л';
@@ -281,13 +281,8 @@ const BeerBubblesCanvas = () => {
     setSize();
     window.addEventListener('resize', setSize);
 
-    // Wave midline in WORLD (page) coordinates. The header wave occupies 20px at
-    // the bottom of the header, with its wavy region between y=0 (crests) and
-    // y=10 (troughs) in SVG coords. With bottom-[-1px], that maps in screen
-    // space to: trough = header_bottom - 9, crest = header_bottom - 19. The
-    // MIDLINE (around which the sine oscillates) is header_bottom - 14.
+    // Wave midline in WORLD (page) coordinates.
     let waveMidWorld = 280;
-    // Half-amplitude in px. Wave is 10px peak-to-peak, so amplitude = 5.
     const waveAmplitude = 5;
     const scrollEl = document.querySelector('main');
     const measureWave = () => {
@@ -306,12 +301,6 @@ const BeerBubblesCanvas = () => {
 
     const getScrollTop = () => (scrollEl ? scrollEl.scrollTop : 0);
 
-    // Surface Y in WORLD coords at screen-x `x` and time `now` (ms). Matches the
-    // wave-smooth 6-second linear translate: wave period is viewport/2 (there are
-    // two wave cycles visible across the viewport), and over 6s the pattern shifts
-    // left by one viewport width. All HeaderWave instances synchronize to
-    // (performance.now() % 6000), so we use the same reference here and the
-    // popping location lines up with what the user actually sees.
     const surfaceAtX = (x, now) => {
       const vw = window.innerWidth;
       const shift = ((now % 6000) / 6000) * vw;
@@ -319,14 +308,10 @@ const BeerBubblesCanvas = () => {
       return waveMidWorld - Math.sin(phase) * waveAmplitude;
     };
 
-    // mode: 'spread' = distribute across visible viewport (initial + catch-up respawn)
-    //       'below'  = spawn just below viewport bottom (natural pop respawn)
     const makeBubble = (mode = 'spread') => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const scrollTop = getScrollTop();
-      // Spawn below the wave's peak line (waveMidWorld - amplitude) so no bubble
-      // starts inside the wave region.
       const topBound = Math.max(waveMidWorld + waveAmplitude + 20, scrollTop);
       const bottomBound = scrollTop + vh;
       const worldY = mode === 'below'
@@ -361,8 +346,7 @@ const BeerBubblesCanvas = () => {
       bubbles.forEach(b => {
         if (b.popping) {
           b.popFrame++;
-          const popDuration = 15;
-          const t = b.popFrame / popDuration;
+          const t = b.popFrame / 15;
           if (t >= 1) {
             const nb = makeBubble('below');
             nb.baseSize = nb.size;
@@ -371,9 +355,6 @@ const BeerBubblesCanvas = () => {
           }
           const popSize = b.baseSize * (1 + t * 1.2);
           const popAlpha = b.opacity * (1 - t);
-          // Pop at the surface Y where the bubble actually hit the wave (captured
-          // at contact time so the pop animation stays anchored even as the wave
-          // continues moving).
           const drawY = b.popY - scrollTop;
           ctx.strokeStyle = `rgba(255, 255, 255, ${popAlpha})`;
           ctx.lineWidth = 0.8;
@@ -387,10 +368,6 @@ const BeerBubblesCanvas = () => {
         b.phase += 0.012;
         if (b.x < -20) b.x = vw + 20;
         if (b.x > vw + 20) b.x = -20;
-        // Compute the wave surface Y at this bubble's current x. Pop when the
-        // bubble's rising Y crosses the surface — so crests catch bubbles
-        // earlier and troughs let them rise further. This makes the pop line
-        // dance with the wave visually.
         const surface = surfaceAtX(b.x, now);
         if (b.worldY < surface) {
           b.popping = true;
@@ -398,8 +375,6 @@ const BeerBubblesCanvas = () => {
           b.popY = surface;
           return;
         }
-        // Respawn bubbles that drifted out of the visible area after a big scroll jump.
-        // Spread them across the viewport so they appear immediately, not trickle in from bottom.
         if (b.worldY < scrollTop - 80 || b.worldY > scrollTop + vh + 200) {
           const nb = makeBubble('spread');
           nb.baseSize = nb.size;
@@ -576,8 +551,8 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
           </div>
         </div>
       )}
-      <div className="relative flex items-center justify-center h-[130px] pt-1">
-        <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
+      <div className="relative flex items-center justify-center h-[130px] pt-1 group-hover:scale-105" style={{ transition: 'transform 600ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
+        <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)]" />
         {isOverlay && (
           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
             <div className="font-display font-black text-[14px] px-5 py-2.5 rounded-[16px] border border-white/70 tracking-[-0.01em] uppercase" style={{
@@ -827,6 +802,7 @@ export default function App() {
         setActiveCategory(ALL_CATEGORIES[0]);
         setSearchQuery(brewery);
         setActiveSearchTerm(brewery);
+        setShowSearchBar(true);
         setIsTransitioning(false);
         setIsSettling(true);
       });
@@ -951,7 +927,7 @@ export default function App() {
       <style dangerouslySetInnerHTML={{
         __html: `
         @import url('https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;0,800;0,900;1,400&family=Commissioner:wght@400;500;600;700&family=Russo+One&display=swap');
-        @font-face { font-family: 'TD Ciryulnik'; src: url('/fonts/td-ciryulnik.woff2') format('woff'); font-display: swap; }
+        @font-face { font-family: 'TD Ciryulnik'; src: url('/fonts/td-ciryulnik.woff2') format('woff2'); font-display: block; }
         :root {
           /* Type scale — 1.25 modular ratio, rem-based */
           --text-micro: 0.6875rem;    /* 11px — captions, legal */
@@ -1045,19 +1021,19 @@ export default function App() {
            on top of it — layered exit so the user feels a real "stepping through"
            transition instead of an abrupt unmount. */
         @keyframes age-gate-out {
-          0%   { opacity: 1; filter: blur(0); }
-          100% { opacity: 0; filter: blur(6px); }
+          0%   { opacity: 1; }
+          100% { opacity: 0; }
         }
         @keyframes age-card-out {
-          0%   { opacity: 1; transform: translateY(0) scale(1); }
-          60%  { opacity: 0.6; transform: translateY(-14px) scale(1.02); }
-          100% { opacity: 0; transform: translateY(-28px) scale(0.92); }
+          0%   { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(0.97); }
         }
         @keyframes wave-smooth { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         @keyframes slide-up-glass { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes slide-down-glass { from { transform: translateY(0); } to { transform: translateY(100%); } }
         @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
         @keyframes foam-drift { 0% { transform: translateX(0) translateY(0); } 50% { transform: translateX(-3px) translateY(1px); } 100% { transform: translateX(0) translateY(0); } }
+        @keyframes logo-glow { 0%, 100% { opacity: 1; filter: brightness(1); } 50% { opacity: 0.85; filter: brightness(1.15); } }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
             animation-duration: 0.01ms !important;
@@ -1150,7 +1126,7 @@ export default function App() {
           className="fixed inset-0 z-[500] flex flex-col items-center justify-center px-6 overflow-hidden"
           style={{
             animation: ageGateClosing
-              ? 'age-gate-out 560ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
+              ? 'age-gate-out 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards'
               : undefined,
           }}
         >
@@ -1167,11 +1143,11 @@ export default function App() {
               border: '1px solid rgba(255,255,255,0.55)',
               boxShadow: '0 10px 40px rgba(120,80,20,0.12), inset 0 1px 0 rgba(255,255,255,0.55)',
               animation: ageGateClosing
-                ? 'age-card-out 460ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
+                ? 'age-card-out 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards'
                 : undefined,
             }}>
             <div className="w-[80px] h-[80px] mb-5 rounded-full shadow-lg flex items-center justify-center bg-white border-[3px] border-white/60">
-              <div className="font-logo text-[13px] leading-[1.1] flex flex-col items-center pt-0.5" style={{ color: '#C4A265' }}>
+              <div className="font-logo text-[17px] leading-[1.1] flex flex-col items-center" style={{ color: '#C4A265' }}>
                 <span>ПРАЙМ</span><span>БИР</span>
               </div>
             </div>
@@ -1187,7 +1163,7 @@ export default function App() {
                 setTimeout(() => {
                   setAgeVerified(true);
                   setAgeGateClosing(false);
-                }, 520);
+                }, 350);
               }}
               className="w-full py-4 rounded-[20px] font-display font-black text-[20px] active:scale-[0.97] transition-all mb-3 tracking-[-0.01em] text-white"
               style={{
@@ -1256,7 +1232,7 @@ export default function App() {
                       style={{ background: `conic-gradient(from 0deg, transparent 0%, transparent 40%, ${accentColor} 100%)` }} />
                   )}
                   <div className="relative w-[50px] h-[50px] rounded-full bg-white flex items-center justify-center z-10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]">
-                    <div className="font-logo text-[10px] leading-[1.1] flex flex-col items-center pt-0.5 transition-colors duration-1000" style={{ color: accentColor }}>
+                    <div className="font-logo text-[14px] leading-[1.1] flex flex-col items-center transition-colors duration-1000" style={{ color: accentColor }}>
                       <span>ПРАЙМ</span><span>БИР</span>
                     </div>
                   </div>
@@ -1315,19 +1291,19 @@ export default function App() {
                         e.preventDefault();
                         const q = searchQuery.trim();
                         if (!q) return;
-                        setShowSearchBar(false);
+                        searchInputRef.current?.blur();
                         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                         setIsTransitioning(true);
                         setTimeout(() => {
-                          setActiveOrigin(ORIGINS[0]);
-                          setActiveCategory(ALL_CATEGORIES[0]);
-                          setActiveSearchTerm(q);
-                          setIsTransitioning(false);
-                          requestAnimationFrame(() => {
-                            requestAnimationFrame(() => setIsSettling(true));
+                          flushSync(() => {
+                            setActiveOrigin(ORIGINS[0]);
+                            setActiveCategory(ALL_CATEGORIES[0]);
+                            setActiveSearchTerm(q);
+                            setIsTransitioning(false);
+                            setIsSettling(true);
                           });
-                          setTimeout(() => setIsSettling(false), 1080);
-                        }, 320);
+                          setTimeout(() => setIsSettling(false), 880);
+                        }, 280);
                       } else if (e.key === 'Escape') {
                         setShowSearchBar(false);
                         if (!activeSearchTerm) setSearchQuery("");
@@ -1339,7 +1315,20 @@ export default function App() {
                   <button
                     onClick={() => {
                       setShowSearchBar(false);
-                      if (!activeSearchTerm) setSearchQuery("");
+                      if (activeSearchTerm) {
+                        setIsTransitioning(true);
+                        setTimeout(() => {
+                          flushSync(() => {
+                            setActiveSearchTerm("");
+                            setSearchQuery("");
+                            setIsTransitioning(false);
+                            setIsSettling(true);
+                          });
+                          setTimeout(() => setIsSettling(false), 880);
+                        }, 280);
+                      } else {
+                        setSearchQuery("");
+                      }
                     }}
                     className="absolute right-2 w-7 h-7 rounded-full flex items-center justify-center active:scale-[0.88] liquid-glass"
                     style={{ backgroundColor: hexToRgba(accentColor, 0.25), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
@@ -1398,41 +1387,6 @@ export default function App() {
           <HeaderWave className="absolute bottom-[-1px] left-0 z-[25]" fill={displayBgColor} />
         </header>
         <div className="px-4 pt-4 pb-[120px] relative z-[30]">
-          {activeSearchTerm && (
-            <div
-              className="mb-4 flex items-center justify-between p-3 rounded-[16px] border bg-white/30 border-white/50 text-zinc-900"
-              style={{
-                animation: searchChipClosing
-                  ? 'search-chip-out 280ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
-                  : 'search-chip-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
-              }}
-            >
-              <span className="text-[13px] font-bold truncate mr-3">Поиск: &quot;{activeSearchTerm}&quot;</span>
-              <button
-                onClick={() => {
-                  // Play the exit keyframe first, then clear the search through
-                  // the same fade/fly-in so the grid repopulates with a proper
-                  // animation instead of snapping back.
-                  setSearchChipClosing(true);
-                  setTimeout(() => {
-                    setSearchChipClosing(false);
-                    setIsTransitioning(true);
-                    setTimeout(() => {
-                      flushSync(() => {
-                        setActiveSearchTerm("");
-                        setSearchQuery("");
-                        setIsTransitioning(false);
-                        setIsSettling(true);
-                      });
-                      setTimeout(() => setIsSettling(false), 880);
-                    }, 280);
-                  }, 260);
-                }}
-                className="rounded-full p-1.5 active:scale-[0.88] liquid-glass shrink-0"
-                style={{ backgroundColor: hexToRgba(accentColor, 0.15), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
-              ><X size={14} /></button>
-            </div>
-          )}
           {activeOrigin && (
             <div className={`grid grid-cols-2 auto-rows-fr gap-3 pb-6 cards-grid ${isTransitioning ? 'cards-grid-fading' : ''} ${isSettling ? 'cards-grid-settling' : ''}`}>
               {currentItems.length > 0 ? currentItems.map((item, index) => (
