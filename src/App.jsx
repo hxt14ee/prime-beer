@@ -15,7 +15,7 @@ const getContrastYIQ = (hexcolor) => {
   const g = parseInt(hexcolor.slice(3, 5), 16);
   const b = parseInt(hexcolor.slice(5, 7), 16);
   const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return (yiq >= 140) ? '#000000' : '#FFFFFF';
+  return (yiq >= 200) ? '#000000' : '#FFFFFF';
 };
 
 const hexToRgba = (hex, alpha = 1) => {
@@ -106,7 +106,7 @@ const CATEGORY_GROUPS = [
     ]
   },
 ];
-const ALL_CATEGORIES = [{ id: 'all_styles', name: 'Любой стиль', color: '#FDE047' }, ...CATEGORY_GROUPS.flatMap(g => g.items)];
+const ALL_CATEGORIES = [{ id: 'all_styles', name: 'Любой стиль', color: '#E8B931' }, ...CATEGORY_GROUPS.flatMap(g => g.items)];
 const CATEGORIES = ALL_CATEGORIES;
 
 // =======================
@@ -542,8 +542,8 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onBrewerySearch?.(item.brewery); }}
-            className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none truncate min-w-0 block active:scale-[0.94] transition-transform"
-            style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}
+            className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none truncate min-w-0 block active:scale-[0.94] transition-transform liquid-glass"
+            style={{ color: hexToRgba(accentContrast, 0.85), backgroundColor: hexToRgba(accentContrast, 0.18) }}
           >{item.brewery}</button>
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px] shrink-0" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
             <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
@@ -571,10 +571,10 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
         <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
         {!item.isNotBeer && (
           <div className="flex flex-wrap gap-1 mb-2.5">
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{getVolumeLabel(item)}</span>
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% OG</span>
-            {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
+            <span className="font-display px-1.5 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: hexToRgba(accentContrast, 0.16), color: accentContrast, border: `1px solid ${hexToRgba(accentContrast, 0.25)}` }}>{getVolumeLabel(item)}</span>
+            <span className="font-display px-1.5 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: hexToRgba(accentContrast, 0.16), color: accentContrast, border: `1px solid ${hexToRgba(accentContrast, 0.25)}` }}>{item.abv}% ABV</span>
+            <span className="font-display px-1.5 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: hexToRgba(accentContrast, 0.16), color: accentContrast, border: `1px solid ${hexToRgba(accentContrast, 0.25)}` }}>{item.og}% OG</span>
+            {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: hexToRgba(accentContrast, 0.16), color: accentContrast, border: `1px solid ${hexToRgba(accentContrast, 0.25)}` }}>{item.ibu} IBU</span>}
           </div>
         )}
         <div className="flex items-center justify-between mt-auto pt-2">
@@ -742,7 +742,7 @@ export default function App() {
 
   const targetAccentColor = useMemo(() => {
     const isNotBeer = activeOrigin?.id === 'not_beer';
-    return isNotBeer ? '#8B939C' : (activeCategory.id === 'all_styles' ? '#FDE047' : activeCategory.color);
+    return isNotBeer ? '#8B939C' : (activeCategory.id === 'all_styles' ? '#E8B931' : activeCategory.color);
   }, [activeCategory, activeOrigin]);
   const isStout = activeCategory.id === 'stout';
 
@@ -1226,13 +1226,29 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <div className="relative w-[56px] h-[56px] rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-transform" onClick={() => { setShowStory(true); setStoryRead(true); }}>
                   {storyRead ? (
-                    <div className="absolute inset-0 rounded-full bg-zinc-300" />
+                    <div className="absolute inset-0 rounded-full border-[2.5px] border-zinc-300" />
                   ) : (
-                    <div className="absolute inset-0 rounded-full animate-[spin_2.5s_linear_infinite] transition-colors duration-1000"
-                      style={{ background: `conic-gradient(from 0deg, transparent 0%, transparent 40%, ${accentColor} 100%)` }} />
+                    <svg className="absolute inset-0 w-full h-full animate-[spin_2.5s_linear_infinite]" viewBox="0 0 56 56" fill="none">
+                      <path
+                        d={(() => {
+                          const cx = 28, cy = 28, R = 27, steps = 40, span = 2.8;
+                          const thick = 3.5;
+                          const outer = [], inner = [];
+                          for (let i = 0; i <= steps; i++) {
+                            const t = i / steps;
+                            const a = -Math.PI / 2 + t * span;
+                            outer.push(`${cx + R * Math.cos(a)},${cy + R * Math.sin(a)}`);
+                            const r = R - thick * t;
+                            inner.unshift(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
+                          }
+                          return `M ${outer[0]} ${outer.slice(1).map(p => `L ${p}`).join(' ')} ${inner.map(p => `L ${p}`).join(' ')} Z`;
+                        })()}
+                        fill={accentColor} style={{ transition: 'fill 1000ms ease' }}
+                      />
+                    </svg>
                   )}
-                  <div className="relative w-[50px] h-[50px] rounded-full bg-white flex items-center justify-center z-10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]">
-                    <div className="font-logo text-[14px] leading-[1.1] flex flex-col items-center transition-colors duration-1000" style={{ color: accentColor }}>
+                  <div className="relative w-[50px] h-[50px] rounded-full flex items-center justify-center z-10">
+                    <div className="font-logo text-[17px] leading-[1.1] flex flex-col items-center transition-all duration-1000" style={{ color: accentColor, WebkitTextStroke: `0.5px ${accentColor}` }}>
                       <span>ПРАЙМ</span><span>БИР</span>
                     </div>
                   </div>
@@ -1249,8 +1265,24 @@ export default function App() {
               <button
                 onClick={() => {
                   if (showSearchBar) {
-                    setShowSearchBar(false);
-                    if (!activeSearchTerm) setSearchQuery("");
+                    const q = searchQuery.trim();
+                    if (q) {
+                      searchInputRef.current?.blur();
+                      mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                      setIsTransitioning(true);
+                      setTimeout(() => {
+                        flushSync(() => {
+                          setActiveOrigin(ORIGINS[0]);
+                          setActiveCategory(ALL_CATEGORIES[0]);
+                          setActiveSearchTerm(q);
+                          setIsTransitioning(false);
+                          setIsSettling(true);
+                        });
+                        setTimeout(() => setIsSettling(false), 880);
+                      }, 280);
+                    } else {
+                      setShowSearchBar(false);
+                    }
                     return;
                   }
                   // flushSync forces React to commit the state change + render
@@ -1535,7 +1567,7 @@ export default function App() {
         const onTouchStart = (e) => { startY = e.touches[0].clientY; };
         const onTouchEnd = (e) => { if (e.changedTouches[0].clientY - startY > 80) closeDetail(); };
         const itemCat = ALL_CATEGORIES.find(c => c.id === selectedItem.type);
-        const itemColor = itemCat ? itemCat.color : '#FDE047';
+        const itemColor = itemCat ? itemCat.color : '#E8B931';
         const itemContrast = getContrastYIQ(itemColor);
         return (
           <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
@@ -1565,16 +1597,13 @@ export default function App() {
                           type="button"
                           onClick={() => {
                             const brewery = selectedItem.brewery;
-                            // Close the detail sheet first, then kick off the search
-                            // after the close animation so the user sees the filtered
-                            // list appear cleanly instead of mid-slide.
                             closeDetail();
                             setTimeout(() => handleBrewerySearch(brewery), 240);
                           }}
-                          className="font-display px-3 py-1.5 rounded-[10px] text-[15px] font-bold active:scale-[0.96] transition-transform"
-                          style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}
+                          className="font-display px-3 py-1.5 rounded-[10px] text-[15px] font-bold active:scale-[0.96] transition-transform truncate min-w-0 liquid-glass"
+                          style={{ color: itemContrast, backgroundColor: hexToRgba(itemContrast, 0.18) }}
                         >{selectedItem.brewery}</button>
-                        <div className="flex items-center gap-1 px-3 py-1.5 rounded-[10px]" style={{ backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>
+                        <div className="flex items-center gap-1 px-3 py-1.5 rounded-[10px] shrink-0" style={{ backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>
                           <Star size={13} style={{ color: itemContrast, fill: itemContrast }} /><span className="font-display text-[15px] font-bold" style={{ color: itemContrast }}>{selectedItem.rating}</span>
                         </div>
                       </div>
