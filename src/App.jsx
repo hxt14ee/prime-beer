@@ -748,7 +748,7 @@ export default function App() {
   const openSearchBar = useCallback(() => {
     showSearchBarRef.current = true;
     if (searchBarRef.current) searchBarRef.current.dataset.open = 'true';
-    searchInputRef.current?.focus();
+    searchInputRef.current?.focus({ preventScroll: true });
   }, []);
   const closeSearchBar = useCallback(() => {
     showSearchBarRef.current = false;
@@ -853,7 +853,7 @@ export default function App() {
     setIsTransitioning(true);
     setTimeout(() => {
       // Single-commit fading → settling to prevent the intermediate jerk.
-      flushSync(() => {
+      startTransition(() => {
         setActiveOrigin(ORIGINS[0]);
         setActiveCategory(ALL_CATEGORIES[0]);
         searchQueryRef.current = brewery;
@@ -863,9 +863,12 @@ export default function App() {
         setIsSettling(true);
       });
       openSearchBar();
+      // Show X button since text was set programmatically (onChange doesn't fire)
+      const xBtn = searchBarRef.current?.querySelector('[data-search-clear]');
+      if (xBtn) { xBtn.style.opacity = '1'; xBtn.style.pointerEvents = 'auto'; }
       setTimeout(() => setIsSettling(false), 880);
     }, 280);
-  }, [openSearchBar]);
+  }, [openSearchBar, searchBarRef]);
 
   const openStory = useCallback(() => { setShowStory(true); setStoryRead(true); }, []);
 
@@ -1311,19 +1314,20 @@ export default function App() {
                     const q = searchQueryRef.current.trim();
                     if (q) {
                       searchInputRef.current?.blur();
-                      closeSearchBar();
                       mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                      setIsTransitioning(true);
-                      setTimeout(() => {
-                        flushSync(() => {
-                          setActiveOrigin(ORIGINS[0]);
-                          setActiveCategory(ALL_CATEGORIES[0]);
-                          setActiveSearchTerm(q);
-                          setIsTransitioning(false);
-                          setIsSettling(true);
-                        });
-                        setTimeout(() => setIsSettling(false), 880);
-                      }, 280);
+                      requestAnimationFrame(() => {
+                        setIsTransitioning(true);
+                        setTimeout(() => {
+                          startTransition(() => {
+                            setActiveOrigin(ORIGINS[0]);
+                            setActiveCategory(ALL_CATEGORIES[0]);
+                            setActiveSearchTerm(q);
+                            setIsTransitioning(false);
+                            setIsSettling(true);
+                          });
+                          setTimeout(() => setIsSettling(false), 880);
+                        }, 280);
+                      });
                     } else {
                       closeSearchBar();
                     }
@@ -1362,19 +1366,20 @@ export default function App() {
                         const q = searchQueryRef.current.trim();
                         if (!q) return;
                         searchInputRef.current?.blur();
-                        closeSearchBar();
                         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                        setIsTransitioning(true);
-                        setTimeout(() => {
-                          flushSync(() => {
-                            setActiveOrigin(ORIGINS[0]);
-                            setActiveCategory(ALL_CATEGORIES[0]);
-                            setActiveSearchTerm(q);
-                            setIsTransitioning(false);
-                            setIsSettling(true);
-                          });
-                          setTimeout(() => setIsSettling(false), 880);
-                        }, 280);
+                        requestAnimationFrame(() => {
+                          setIsTransitioning(true);
+                          setTimeout(() => {
+                            startTransition(() => {
+                              setActiveOrigin(ORIGINS[0]);
+                              setActiveCategory(ALL_CATEGORIES[0]);
+                              setActiveSearchTerm(q);
+                              setIsTransitioning(false);
+                              setIsSettling(true);
+                            });
+                            setTimeout(() => setIsSettling(false), 880);
+                          }, 280);
+                        });
                       } else if (e.key === 'Escape') {
                         closeSearchBar();
                         searchQueryRef.current = "";
@@ -1393,15 +1398,18 @@ export default function App() {
                       const xBtn = searchBarRef.current?.querySelector('[data-search-clear]');
                       if (xBtn) { xBtn.style.opacity = '0'; xBtn.style.pointerEvents = 'none'; }
                       if (activeSearchTerm) {
-                        setIsTransitioning(true);
-                        setTimeout(() => {
-                          flushSync(() => {
-                            setActiveSearchTerm("");
-                            setIsTransitioning(false);
-                            setIsSettling(true);
-                          });
-                          setTimeout(() => setIsSettling(false), 880);
-                        }, 280);
+                        mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                        requestAnimationFrame(() => {
+                          setIsTransitioning(true);
+                          setTimeout(() => {
+                            startTransition(() => {
+                              setActiveSearchTerm("");
+                              setIsTransitioning(false);
+                              setIsSettling(true);
+                            });
+                            setTimeout(() => setIsSettling(false), 880);
+                          }, 280);
+                        });
                       }
                     }}
                     className="absolute right-14 w-6 h-6 flex items-center justify-center active:scale-[0.88]"
