@@ -404,19 +404,17 @@ const BeerBubblesCanvas = () => {
 // =======================
 // 4b. ПУЗЫРЬКИ В ПЕНЕ (хедер)
 // =======================
-const FoamBubblesCanvas = () => {
+const FoamBubblesCanvas_ = () => {
   const canvasRef = useRef(null);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const parent = canvas.parentElement;
-    const setSize = () => {
-      canvas.width = parent.offsetWidth;
-      canvas.height = parent.offsetHeight;
-    };
-    setSize();
-    const ro = new ResizeObserver(setSize);
+    // Sync canvas buffer size with parent, but ONLY inside the animation
+    // loop so that clear + redraw happen in the same frame (no blank flash).
+    let needsResize = true; // true on mount to set initial size
+    const ro = new ResizeObserver(() => { needsResize = true; });
     ro.observe(parent);
     const respawn = (b) => {
       b.x = Math.random() * canvas.width;
@@ -440,6 +438,13 @@ const FoamBubblesCanvas = () => {
     });
     let animationId;
     const animate = () => {
+      if (needsResize) {
+        const w = parent.offsetWidth;
+        const h = parent.offsetHeight;
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
+        needsResize = false;
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       bubbles.forEach(b => {
         b.life++;
@@ -477,6 +482,44 @@ const FoamBubblesCanvas = () => {
   }, []);
   return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-[1] opacity-80" />;
 };
+const FoamBubblesCanvas = React.memo(FoamBubblesCanvas_);
+
+// Memoized logo — prevents re-render/repaint on unrelated state changes
+// (e.g. showSearchBar toggle). Only re-renders when accentColor or storyRead change.
+const LogoBadge_ = ({ accentColor, storyRead, onOpen }) => {
+  return (
+    <div className="relative w-[56px] h-[56px] rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-transform" onClick={onOpen}>
+      {storyRead ? (
+        <div className="absolute inset-0 rounded-full border-[2.5px] border-zinc-300" />
+      ) : (
+        <svg className="absolute inset-0 w-full h-full animate-[spin_2.5s_linear_infinite]" viewBox="0 0 56 56" fill="none" style={{ willChange: 'transform' }}>
+          <path
+            d={(() => {
+              const cx = 28, cy = 28, R = 27, steps = 40, span = 2.8;
+              const thick = 3.5;
+              const outer = [], inner = [];
+              for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const a = -Math.PI / 2 + t * span;
+                outer.push(`${cx + R * Math.cos(a)},${cy + R * Math.sin(a)}`);
+                const r = R - thick * t;
+                inner.unshift(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
+              }
+              return `M ${outer[0]} ${outer.slice(1).map(p => `L ${p}`).join(' ')} ${inner.map(p => `L ${p}`).join(' ')} Z`;
+            })()}
+            fill={accentColor} style={{ transition: 'fill 1000ms ease' }}
+          />
+        </svg>
+      )}
+      <div className="relative w-[50px] h-[50px] rounded-full flex items-center justify-center z-10">
+        <div className="font-logo text-[17px] leading-[1.1] flex flex-col items-center" style={{ color: accentColor, textShadow: `0 0 0.5px ${accentColor}, 0 0 0.5px ${accentColor}`, transition: 'color 1000ms ease, text-shadow 1000ms ease' }}>
+          <span>ПРАЙМ</span><span>БИР</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+const LogoBadge = React.memo(LogoBadge_);
 
 // =======================
 // 4c. HEADER WAVE — single shared foam wave, synchronized across header + body
@@ -696,9 +739,22 @@ export default function App() {
   const [showCart, setShowCart] = useState(false);
   const [detailFromCart, setDetailFromCart] = useState(false);
   const [cartItems, setCartItems] = useState([]);
-  const [showSearchBar, setShowSearchBar] = useState(false);
+  const searchBarRef = useRef(null);
+  const showSearchBarRef = useRef(false);
   const searchInputRef = useRef(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchQueryRef = useRef("");
+
+  // Toggle search bar visibility via DOM — zero React re-renders, zero dropped frames
+  const openSearchBar = useCallback(() => {
+    showSearchBarRef.current = true;
+    if (searchBarRef.current) searchBarRef.current.dataset.open = 'true';
+    searchInputRef.current?.focus();
+  }, []);
+  const closeSearchBar = useCallback(() => {
+    showSearchBarRef.current = false;
+    if (searchBarRef.current) searchBarRef.current.dataset.open = 'false';
+    searchInputRef.current?.blur();
+  }, []);
   const [activeSearchTerm, setActiveSearchTerm] = useState("");
   const [showStory, setShowStory] = useState(false);
   const [storyRead, setStoryRead] = useState(false);
@@ -800,15 +856,18 @@ export default function App() {
       flushSync(() => {
         setActiveOrigin(ORIGINS[0]);
         setActiveCategory(ALL_CATEGORIES[0]);
-        setSearchQuery(brewery);
+        searchQueryRef.current = brewery;
+        if (searchInputRef.current) searchInputRef.current.value = brewery;
         setActiveSearchTerm(brewery);
-        setShowSearchBar(true);
         setIsTransitioning(false);
         setIsSettling(true);
       });
+      openSearchBar();
       setTimeout(() => setIsSettling(false), 880);
     }, 280);
-  }, []);
+  }, [openSearchBar]);
+
+  const openStory = useCallback(() => { setShowStory(true); setStoryRead(true); }, []);
 
   const updateCart = useCallback((e, item, delta) => {
     if (e) e.stopPropagation();
@@ -1017,6 +1076,17 @@ export default function App() {
           0%   { opacity: 0; transform: translateY(-12px); filter: blur(6px); }
           100% { opacity: 1; transform: translateY(0); filter: blur(0); }
         }
+        .search-bar-reveal {
+          clip-path: inset(0 0 0 100% round 16px);
+          opacity: 0;
+          pointer-events: none;
+          transition: clip-path 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms ease-out;
+        }
+        .search-bar-reveal[data-open="true"] {
+          clip-path: inset(0 0 0 0 round 16px);
+          opacity: 1;
+          pointer-events: auto;
+        }
         /* Age gate exit: backdrop fades + gently blurs out, card zooms up and away
            on top of it — layered exit so the user feels a real "stepping through"
            transition instead of an abrupt unmount. */
@@ -1224,35 +1294,7 @@ export default function App() {
             <FoamBubblesCanvas />
             <div className="flex justify-between items-center h-[70px] relative z-[50]">
               <div className="flex items-center gap-3">
-                <div className="relative w-[56px] h-[56px] rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-transform" onClick={() => { setShowStory(true); setStoryRead(true); }}>
-                  {storyRead ? (
-                    <div className="absolute inset-0 rounded-full border-[2.5px] border-zinc-300" />
-                  ) : (
-                    <svg className="absolute inset-0 w-full h-full animate-[spin_2.5s_linear_infinite]" viewBox="0 0 56 56" fill="none">
-                      <path
-                        d={(() => {
-                          const cx = 28, cy = 28, R = 27, steps = 40, span = 2.8;
-                          const thick = 3.5;
-                          const outer = [], inner = [];
-                          for (let i = 0; i <= steps; i++) {
-                            const t = i / steps;
-                            const a = -Math.PI / 2 + t * span;
-                            outer.push(`${cx + R * Math.cos(a)},${cy + R * Math.sin(a)}`);
-                            const r = R - thick * t;
-                            inner.unshift(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
-                          }
-                          return `M ${outer[0]} ${outer.slice(1).map(p => `L ${p}`).join(' ')} ${inner.map(p => `L ${p}`).join(' ')} Z`;
-                        })()}
-                        fill={accentColor} style={{ transition: 'fill 1000ms ease' }}
-                      />
-                    </svg>
-                  )}
-                  <div className="relative w-[50px] h-[50px] rounded-full flex items-center justify-center z-10">
-                    <div className="font-logo text-[17px] leading-[1.1] flex flex-col items-center transition-all duration-1000" style={{ color: accentColor, WebkitTextStroke: `0.5px ${accentColor}` }}>
-                      <span>ПРАЙМ</span><span>БИР</span>
-                    </div>
-                  </div>
-                </div>
+                <LogoBadge accentColor={accentColor} storyRead={storyRead} onOpen={openStory} />
                 <button onClick={() => setShowLocationSheet(true)} className="flex flex-col items-start active:opacity-70 text-left ml-1">
                   <span className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest mb-0.5">{activeLocation.area}</span>
                   <div className="flex items-center gap-1">
@@ -1262,12 +1304,14 @@ export default function App() {
                   </div>
                 </button>
               </div>
+              {/* Search button — toggles inline search bar */}
               <button
                 onClick={() => {
-                  if (showSearchBar) {
-                    const q = searchQuery.trim();
+                  if (showSearchBarRef.current) {
+                    const q = searchQueryRef.current.trim();
                     if (q) {
                       searchInputRef.current?.blur();
+                      closeSearchBar();
                       mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                       setIsTransitioning(true);
                       setTimeout(() => {
@@ -1281,49 +1325,44 @@ export default function App() {
                         setTimeout(() => setIsSettling(false), 880);
                       }, 280);
                     } else {
-                      setShowSearchBar(false);
+                      closeSearchBar();
                     }
                     return;
                   }
-                  // flushSync forces React to commit the state change + render
-                  // synchronously during this click event, so the input exists in
-                  // the DOM by the time focus() runs — and because focus() is
-                  // still inside the user-gesture handler, iOS/Android open the
-                  // software keyboard immediately instead of ignoring the call.
-                  flushSync(() => setShowSearchBar(true));
-                  searchInputRef.current?.focus();
+                  openSearchBar();
                 }}
-                className="w-[56px] h-[56px] rounded-full active:scale-95 transition-all flex items-center justify-center duration-1000 liquid-glass"
-                style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}
+                className="w-[56px] h-[56px] rounded-full active:scale-95 flex items-center justify-center liquid-glass relative z-[2]"
+                style={{ backgroundColor: hexToRgba(accentColor, 0.15), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
               >
                 <Search size={22} strokeWidth={2.5} style={{ color: accentColor }} className="transition-colors duration-1000" />
               </button>
-            </div>
-            {/* Inline search bar — appears in place instead of a modal so users
-                stay in context. Slides down with a soft overshoot, auto-focused.
-                Enter submits (runs the same fade→fly-in as the brewery search),
-                X collapses. */}
-            {showSearchBar && (
+              {/* Search bar — always in DOM, clip-path reveal from right (GPU only, zero layout) */}
               <div
-                className="mt-3 relative z-[50]"
-                style={{ animation: 'search-bar-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both' }}
+                ref={searchBarRef}
+                data-open="false"
+                className="search-bar-reveal absolute right-0 top-1/2 z-[1]"
+                style={{ width: '50%', transform: 'translateY(-50%)' }}
               >
-                <div
-                  className="relative flex items-center rounded-[16px] liquid-glass-subtle"
-                  style={{ backgroundColor: hexToRgba(accentColor, 0.12) }}
-                >
+                <div className="relative flex items-center rounded-[16px] liquid-glass-subtle h-[50px]">
                   <Search size={18} className="absolute left-3.5 text-zinc-500 pointer-events-none" strokeWidth={2.5} />
                   <input
                     ref={searchInputRef}
                     type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    defaultValue=""
+                    onChange={(e) => {
+                      searchQueryRef.current = e.target.value;
+                      // Toggle X button visibility via DOM (no re-render)
+                      const xBtn = searchBarRef.current?.querySelector('[data-search-clear]');
+                      if (xBtn) xBtn.style.opacity = e.target.value.trim() ? '1' : '0';
+                      if (xBtn) xBtn.style.pointerEvents = e.target.value.trim() ? 'auto' : 'none';
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const q = searchQuery.trim();
+                        const q = searchQueryRef.current.trim();
                         if (!q) return;
                         searchInputRef.current?.blur();
+                        closeSearchBar();
                         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                         setIsTransitioning(true);
                         setTimeout(() => {
@@ -1337,37 +1376,40 @@ export default function App() {
                           setTimeout(() => setIsSettling(false), 880);
                         }, 280);
                       } else if (e.key === 'Escape') {
-                        setShowSearchBar(false);
-                        if (!activeSearchTerm) setSearchQuery("");
+                        closeSearchBar();
+                        searchQueryRef.current = "";
+                        if (searchInputRef.current) searchInputRef.current.value = "";
                       }
                     }}
                     placeholder="Название или пивоварня..."
-                    className="flex-1 pl-11 pr-11 py-3 bg-transparent text-[14px] font-medium text-zinc-900 placeholder:text-zinc-500 focus:outline-none"
+                    className="flex-1 pl-11 pr-10 py-3 bg-transparent text-[14px] font-medium text-zinc-900 placeholder:text-zinc-500 focus:outline-none"
                   />
                   <button
+                    data-search-clear
                     onClick={() => {
-                      setShowSearchBar(false);
+                      closeSearchBar();
+                      searchQueryRef.current = "";
+                      if (searchInputRef.current) searchInputRef.current.value = "";
+                      const xBtn = searchBarRef.current?.querySelector('[data-search-clear]');
+                      if (xBtn) { xBtn.style.opacity = '0'; xBtn.style.pointerEvents = 'none'; }
                       if (activeSearchTerm) {
                         setIsTransitioning(true);
                         setTimeout(() => {
                           flushSync(() => {
                             setActiveSearchTerm("");
-                            setSearchQuery("");
                             setIsTransitioning(false);
                             setIsSettling(true);
                           });
                           setTimeout(() => setIsSettling(false), 880);
                         }, 280);
-                      } else {
-                        setSearchQuery("");
                       }
                     }}
-                    className="absolute right-2 w-7 h-7 rounded-full flex items-center justify-center active:scale-[0.88] liquid-glass"
-                    style={{ backgroundColor: hexToRgba(accentColor, 0.25), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
-                  ><X size={14} /></button>
+                    className="absolute right-14 w-6 h-6 flex items-center justify-center active:scale-[0.88]"
+                    style={{ opacity: 0, pointerEvents: 'none', transition: 'opacity 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1)' }}
+                  ><X size={16} strokeWidth={2} className="text-zinc-500" /></button>
                 </div>
               </div>
-            )}
+            </div>
             <div className="flex gap-2 mt-4 relative z-[50]">
               <button onClick={() => setShowOriginSheet(true)} className="flex-1 flex items-center justify-between p-3.5 rounded-[16px] active:scale-[0.98] transition-all liquid-glass-subtle">
                 <div className="flex flex-col items-start w-full pr-2">
