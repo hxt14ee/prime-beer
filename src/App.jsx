@@ -866,6 +866,32 @@ export default function App() {
     return result;
   }, [activeOrigin, activeCategory, sortConfig, activeSearchTerm]);
 
+  // ─── Progressive card rendering ───────────────────────────────────
+  // Render cards in batches of CARDS_PER_BATCH per animation frame to
+  // prevent UI freezes when switching between filters with many items.
+  const CARDS_PER_BATCH = 12;
+  const [visibleCardCount, setVisibleCardCount] = useState(CARDS_PER_BATCH);
+  const prevItemsLenRef = useRef(currentItems.length);
+
+  // Reset to initial batch whenever the item list identity changes
+  useEffect(() => {
+    if (prevItemsLenRef.current !== currentItems.length) {
+      prevItemsLenRef.current = currentItems.length;
+      setVisibleCardCount(CARDS_PER_BATCH);
+    }
+  }, [currentItems.length]);
+
+  // Progressively load remaining cards, one batch per frame
+  useEffect(() => {
+    if (visibleCardCount >= currentItems.length) return;
+    const id = requestAnimationFrame(() => {
+      setVisibleCardCount(v => Math.min(v + CARDS_PER_BATCH, currentItems.length));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [visibleCardCount, currentItems.length]);
+
+  const visibleItems = currentItems.slice(0, visibleCardCount);
+
   const cartTotalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotalPrice = cartItems.reduce((sum, item) => sum + (item.item.price * item.quantity), 0);
 
@@ -1362,13 +1388,11 @@ export default function App() {
                       requestAnimationFrame(() => {
                         setIsTransitioning(true);
                         setTimeout(() => {
-                          startTransition(() => {
-                            setActiveOrigin(ORIGINS[0]);
-                            setActiveCategory(ALL_CATEGORIES[0]);
-                            setActiveSearchTerm(q);
-                            setIsTransitioning(false);
-                            setIsSettling(true);
-                          });
+                          setActiveOrigin(ORIGINS[0]);
+                          setActiveCategory(ALL_CATEGORIES[0]);
+                          setActiveSearchTerm(q);
+                          setIsTransitioning(false);
+                          setIsSettling(true);
                           setTimeout(() => setIsSettling(false), 880);
                         }, 280);
                       });
@@ -1415,13 +1439,11 @@ export default function App() {
                         requestAnimationFrame(() => {
                           setIsTransitioning(true);
                           setTimeout(() => {
-                            startTransition(() => {
-                              setActiveOrigin(ORIGINS[0]);
-                              setActiveCategory(ALL_CATEGORIES[0]);
-                              setActiveSearchTerm(q);
-                              setIsTransitioning(false);
-                              setIsSettling(true);
-                            });
+                            setActiveOrigin(ORIGINS[0]);
+                            setActiveCategory(ALL_CATEGORIES[0]);
+                            setActiveSearchTerm(q);
+                            setIsTransitioning(false);
+                            setIsSettling(true);
                             setTimeout(() => setIsSettling(false), 880);
                           }, 280);
                         });
@@ -1447,11 +1469,9 @@ export default function App() {
                         requestAnimationFrame(() => {
                           setIsTransitioning(true);
                           setTimeout(() => {
-                            startTransition(() => {
-                              setActiveSearchTerm("");
-                              setIsTransitioning(false);
-                              setIsSettling(true);
-                            });
+                            setActiveSearchTerm("");
+                            setIsTransitioning(false);
+                            setIsSettling(true);
                             setTimeout(() => setIsSettling(false), 880);
                           }, 280);
                         });
@@ -1516,7 +1536,7 @@ export default function App() {
         <div className="px-4 pt-4 pb-[120px] relative z-[30]">
           {activeOrigin && (
             <div className={`grid grid-cols-2 auto-rows-fr gap-3 pb-6 cards-grid ${isTransitioning ? 'cards-grid-fading' : ''} ${isSettling ? 'cards-grid-settling' : ''}`}>
-              {currentItems.length > 0 ? currentItems.map((item, index) => (
+              {visibleItems.length > 0 ? visibleItems.map((item, index) => (
                 <ProductCard
                   key={item.id}
                   item={item}
