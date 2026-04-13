@@ -1148,6 +1148,8 @@ export default function App() {
         .cards-grid > * {
           opacity: 1;
           transform: translateY(0) scale(1);
+          will-change: transform, opacity;
+          contain: layout style paint;
         }
         .cards-grid-fading > * {
           opacity: 0;
@@ -1172,6 +1174,12 @@ export default function App() {
         .cards-grid-settling > *:nth-child(7)  { animation-delay: 210ms; }
         .cards-grid-settling > *:nth-child(8)  { animation-delay: 245ms; }
         .cards-grid-settling > *:nth-child(n+9) { animation-delay: 280ms; }
+        [data-perf-tier="low"] .cards-grid-settling > * {
+          animation-duration: 300ms;
+        }
+        [data-perf-tier="low"] .cards-grid-fading > * {
+          transition-duration: 150ms;
+        }
         @keyframes card-fly-in {
           0%   { opacity: 0; transform: translateY(8px) scale(0.95); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
