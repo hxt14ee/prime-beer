@@ -24,7 +24,7 @@ if (tg) {
     apply();
     tg.onEvent?.('viewportChanged', apply);
     tg.onEvent?.('safeAreaChanged', apply);
-  } catch (e) { /* noop */ }
+  } catch { /* noop */ }
 }
 
 // Prevent double-tap zoom / pinch on iOS Safari inside Telegram

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "skills": {
+    "discovery-interview": {
+      "source": "parcadei/Continuous-Claude-v3",
+      "sourceType": "github",
+      "computedHash": "934f3f1a7dd3a35e3a74f5716242ca2642a0efc6bee4f0c5f8b2233d7aefa9f3"
+    },
+    "frontend-design": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "ac8146b14b32a4e748b54004e82a4795ff23c0d24612b63913cda192be0ae873"
+    },
+    "frontend-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "4c2920da9aef340538f2d579f465fd99c5b679d4afa0daba775215c0e506d0b1"
+    },
+    "fullstack-developer": {
+      "source": "Shubhamsaboo/awesome-llm-apps",
+      "sourceType": "github",
+      "computedHash": "92f6f4f9bbdde529237f1840d94c4269abb62ad1d5e41d9c76bd14266001cbe8"
+    },
+    "playwright-dev": {
+      "source": "microsoft/playwright",
+      "sourceType": "github",
+      "computedHash": "e343c21af4017395481e62f58ea447ec1e6e78dfa42b0d6f4aa8f3fb16ec3b7a"
+    }
+  }
+}
