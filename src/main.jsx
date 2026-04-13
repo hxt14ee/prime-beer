@@ -24,64 +24,12 @@ if (tg) {
     apply();
     tg.onEvent?.('viewportChanged', apply);
     tg.onEvent?.('safeAreaChanged', apply);
-  } catch (e) { /* noop */ }
+  } catch { /* noop */ }
 }
-
-// Fix iOS TG viewport height — Telegram's webview sometimes reports
-// wrong innerHeight. Force recalc on visibility change and resize.
-const fixVh = () => {
-  const vh = window.innerHeight * 0.01;
-  document.documentElement.style.setProperty('--vh', `${vh}px`);
-};
-fixVh();
-window.addEventListener('resize', fixVh);
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) fixVh();
-});
 
 // Prevent double-tap zoom / pinch on iOS Safari inside Telegram
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
-document.addEventListener('touchstart', () => {}, { passive: true });
-document.addEventListener('touchmove', () => {}, { passive: true });
-
-// Detect device performance tier for animation throttling
-const detectPerfTier = () => {
-  const ua = navigator.userAgent;
-  const mem = navigator.deviceMemory || 4;
-  const cores = navigator.hardwareConcurrency || 4;
-  const dpr = window.devicePixelRatio || 1;
-
-  if (mem <= 2 || cores <= 2) return 'low';
-  if (mem >= 6 && cores >= 6) return 'high';
-  return 'mid';
-};
-
-const perfTier = detectPerfTier();
-document.documentElement.dataset.perfTier = perfTier;
-document.documentElement.style.setProperty('--perf-tier', perfTier);
-
-// Detect screen refresh rate for animation frame budget
-let screenHz = 60;
-const detectHz = () => {
-  let last = 0;
-  let samples = [];
-  let count = 0;
-  const measure = (ts) => {
-    if (last) samples.push(ts - last);
-    last = ts;
-    count++;
-    if (count < 20) {
-      requestAnimationFrame(measure);
-    } else {
-      const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
-      screenHz = Math.round(1000 / avg);
-      document.documentElement.style.setProperty('--screen-hz', String(screenHz));
-    }
-  };
-  requestAnimationFrame(measure);
-};
-detectHz();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

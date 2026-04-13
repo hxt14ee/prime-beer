@@ -1,724 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
-import { createPortal, flushSync } from 'react-dom';
-import {
-  Search, Star, X, Flame, Droplets, ChevronDown, ChevronUp, ShieldCheck, Check,
-  Globe, MapPin, Zap, Plus, Minus, Truck, CalendarCheck, Package, Beer,
-  Trash2, Users, Archive, Clock3, Sparkles
-} from 'lucide-react';
+import { flushSync } from 'react-dom';
+import { Search, Star, X, Flame, ChevronDown, ChevronUp, MapPin, Plus, Minus, Truck, CalendarCheck, Beer } from 'lucide-react';
+import { ALL_CATEGORIES, CATALOG_ITEMS, CATEGORIES, CATEGORY_GROUPS, LOCATIONS, ORIGINS, createGroupCategory, getVolumeLabel } from './data/catalog.js';
+import { ItemImage } from './components/ItemImage.jsx';
+import ProductCard from './components/ProductCard.jsx';
+import { PrimeMark } from './components/PrimeMark.jsx';
+import { BeerBubblesCanvas, FoamBubblesCanvas, HeaderWave } from './components/visuals/Bubbles.jsx';
+import { getContrastYIQ, hexToRgba } from './utils/ui.js';
 
-// =======================
-// 1. УТИЛИТЫ И КОНФИГИ ЦВЕТОВ
-// =======================
-const getContrastYIQ = (hexcolor) => {
-  if (!hexcolor) return '#18181B';
-  const r = parseInt(hexcolor.slice(1, 3), 16);
-  const g = parseInt(hexcolor.slice(3, 5), 16);
-  const b = parseInt(hexcolor.slice(5, 7), 16);
-  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return (yiq >= 140) ? '#000000' : '#FFFFFF';
-};
-
-const hexToRgba = (hex, alpha = 1) => {
-  if (!hex) return `rgba(0,0,0,${alpha})`;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-};
-
-const LOCATIONS = [
-  { id: 'push', address: 'Пушкинская, 11Б', area: 'ЦЕНТР' },
-  { id: 'holz', address: 'Хользунова, 10Б', area: 'СЕВЕРНЫЙ' }
-];
-
-const ORIGINS = [
-  { id: 'all', name: 'Всё', icon: Beer },
-  { id: 'ru', name: 'Россия', icon: MapPin },
-  { id: 'promo', name: 'Акции', icon: Zap },
-  { id: 'import', name: 'Импорт', icon: Globe },
-  { id: 'collab', name: 'Коллаборации', icon: Users },
-  { id: 'tap', name: 'На кране', icon: Droplets },
-  { id: 'soon', name: 'Скоро', icon: Clock3 },
-  { id: 'not_beer', name: 'Не пиво', icon: Package },
-  { id: 'archive', name: 'Архив', icon: Archive }
-];
-
-const CATEGORY_GROUPS = [
-  {
-    group: 'КЛАССИКА', color: '#e0a526', items: [
-      { id: 'lager', name: 'Lager / Pilsner', color: '#e0a526' },
-      { id: 'wheat', name: 'Wheat / Weisse', color: '#e0a526' },
-      { id: 'pale', name: 'Pale Ale / Blonde', color: '#e0a526' },
-    ]
-  },
-  {
-    group: 'ОХМЕЛЕННОЕ', color: '#d87706', items: [
-      { id: 'ipa', name: 'IPA / DIPA', color: '#d87706' },
-      { id: 'neipa', name: 'NEIPA / Hazy', color: '#d87706' },
-      { id: 'apa', name: 'APA / Session', color: '#d87706' },
-    ]
-  },
-  {
-    group: 'ТЕМНОЕ', color: '#3b2218', items: [
-      { id: 'stout', name: 'Stout / Porter', color: '#3b2218' },
-      { id: 'pastry_stout', name: 'Pastry Stout', color: '#3b2218' },
-      { id: 'dark', name: 'Dark / Brown / Amber', color: '#3b2218' },
-    ]
-  },
-  {
-    group: 'КРЕПКОЕ И ВЫДЕРЖАННОЕ', color: '#6b3a1f', items: [
-      { id: 'ris', name: 'Imperial Stout (RIS)', color: '#6b3a1f' },
-      { id: 'barleywine', name: 'Barleywine / Strong Ale', color: '#6b3a1f' },
-      { id: 'barrel_aged', name: 'Barrel Aged (BA)', color: '#6b3a1f' },
-    ]
-  },
-  {
-    group: 'БЕЛЬГИЯ И ФЕРМЕРСКИЕ', color: '#c2820e', items: [
-      { id: 'belgian', name: 'Belgian Ale', color: '#c2820e' },
-      { id: 'saison', name: 'Saison / Farmhouse', color: '#c2820e' },
-    ]
-  },
-  {
-    group: 'КИСЛОЕ И ДИКОЕ', color: '#ad173c', items: [
-      { id: 'sour', name: 'Sour Ale', color: '#ad173c' },
-      { id: 'smoothie', name: 'Smoothie Sour', color: '#ad173c' },
-      { id: 'wild', name: 'Wild / Lambic', color: '#ad173c' },
-    ]
-  },
-  {
-    group: 'СОЛЁНЫЕ И ГАСТРО', color: '#c43030', items: [
-      { id: 'gose', name: 'Classic Gose', color: '#c43030' },
-      { id: 'tomato_gose', name: 'Tomato Gose', color: '#c43030' },
-      { id: 'culinary', name: 'Culinary / Soup', color: '#c43030' },
-    ]
-  },
-  {
-    group: 'АЛЬТЕРНАТИВА', color: '#5a8c2a', items: [
-      { id: 'cider', name: 'Cider / Perry', color: '#5a8c2a' },
-      { id: 'mead', name: 'Mead / Melomel', color: '#5a8c2a' },
-      { id: 'fruit_beer', name: 'Fruit Beer / Hard Seltzer', color: '#5a8c2a' },
-    ]
-  },
-  {
-    group: 'БЕЗАЛКОГОЛЬНОЕ', color: '#2d6cb4', items: [
-      { id: 'na', name: 'N/A Beer', color: '#2d6cb4' },
-      { id: 'na_alt', name: 'N/A Alternative', color: '#2d6cb4' },
-    ]
-  },
-];
-const ALL_CATEGORIES = [{ id: 'all_styles', name: 'Любой стиль', color: '#D9B500' }, ...CATEGORY_GROUPS.flatMap(g => g.items)];
-const CATEGORIES = ALL_CATEGORIES;
-
-// =======================
-// 2. БАЗА ДАННЫХ
-// =======================
-const MOCK_ITEMS = [
-  { id: 1, name: 'West Coast Life', brewery: "Salden's", type: 'ipa', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 7.5, ibu: 60, og: 16.5, price: 340, rating: 4.6, image: '', desc: 'Олдскульный West Coast IPA. Мощная хвойно-смолистая горечь и цитрусы.', nutrition: { kcal: 55, p: 0.5, f: 0, c: 4.5 } },
-  { id: 2, name: 'Атомная Прачечная', brewery: 'Jaws', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 7.0, ibu: 101, og: 16, price: 320, rating: 4.8, image: '', desc: 'Легендарная уральская IPA.', nutrition: { kcal: 53, p: 0.6, f: 0, c: 4.0 } },
-  { id: 3, name: 'Rupture', brewery: 'Zagovor', type: 'ipa', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 6.5, ibu: 40, og: 15, price: 380, rating: 4.7, image: '', desc: 'Классический мягкий IPA с двойным сухим охмелением Citra и Mosaic.', nutrition: { kcal: 50, p: 0.4, f: 0, c: 4.2 } },
-  { id: 4, name: 'Punk IPA', brewery: 'BrewDog', type: 'ipa', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 5.4, ibu: 35, og: 12.5, price: 450, rating: 4.5, image: '', desc: 'Шотландская классика.', nutrition: { kcal: 45, p: 0.5, f: 0, c: 3.8 } },
-  { id: 5, name: 'Red Machine', brewery: 'Victory Art Brew', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.9, ibu: 65, og: 16, price: 310, rating: 4.6, image: '', desc: 'Сбалансированный индийский бледный эль.', nutrition: { kcal: 52, p: 0.5, f: 0, c: 4.3 } },
-  { id: 6, name: 'Bowler IPA', brewery: 'Gletcher', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.1, ibu: 70, og: 14, price: 290, rating: 4.4, image: '', desc: 'Английский стиль. Цветочные и земляные оттенки хмеля.', nutrition: { kcal: 48, p: 0.4, f: 0, c: 3.9 } },
-  { id: 7, name: 'Crazy Moose', brewery: 'Konix', type: 'ipa', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.5, ibu: 45, og: 13, price: 250, rating: 4.3, image: '', desc: 'Сессионный APA/IPA с легким телом.', nutrition: { kcal: 42, p: 0.3, f: 0, c: 3.5 } },
-  { id: 8, name: '100 Рентген', brewery: 'Plan B', type: 'ipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 8.0, ibu: 80, og: 18, price: 350, rating: 4.7, image: '', desc: 'Двойной IPA (DIPA). Плотный, крепкий.', nutrition: { kcal: 65, p: 0.7, f: 0, c: 5.5 } },
-  { id: 9, name: 'Lagunitas IPA', brewery: 'Lagunitas', type: 'ipa', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 6.2, ibu: 51, og: 14.5, price: 420, rating: 4.5, image: '', desc: 'Калифорнийский крафт.', nutrition: { kcal: 50, p: 0.5, f: 0, c: 4.1 } },
-  { id: 10, name: 'Space IPA', brewery: 'Gubaha', type: 'ipa', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 6.0, ibu: 50, og: 14, price: 270, rating: 4.2, image: '', desc: 'Питкий IPA на каждый день.', nutrition: { kcal: 46, p: 0.4, f: 0, c: 3.8 } },
-  { id: 11, name: 'Синяя Гусеница', brewery: 'Таркос', type: 'neipa', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 6.6, ibu: 24, og: 15, price: 280, rating: 4.9, image: '', desc: 'Легендарный Vermont IPA.', nutrition: { kcal: 54, p: 0.5, f: 0, c: 4.6 } },
-  { id: 12, name: 'Haze Machine', brewery: 'Zagovor', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 7.0, ibu: 30, og: 16, price: 420, rating: 4.9, image: '', desc: 'Эталонный New England.', nutrition: { kcal: 56, p: 0.6, f: 0, c: 4.8 } },
-  { id: 13, name: 'Puzzle', brewery: 'Stamm', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.5, ibu: 20, og: 15.5, price: 360, rating: 4.7, image: '', desc: 'Монохоп на Citra.', nutrition: { kcal: 52, p: 0.5, f: 0, c: 4.5 } },
-  { id: 14, name: 'Local Dealer', brewery: 'Big Village', type: 'neipa', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 8.0, ibu: 35, og: 18, price: 390, rating: 4.8, image: '', desc: 'Мощный Double NEIPA.', nutrition: { kcal: 68, p: 0.8, f: 0, c: 5.8 } },
-  { id: 15, name: 'Juice & Juice', brewery: 'AF Brew', type: 'neipa', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 15, og: 14, price: 350, rating: 4.6, image: '', desc: 'Максимально сочный пейл-эль.', nutrition: { kcal: 48, p: 0.4, f: 0, c: 4.2 } },
-  { id: 16, name: 'Yellow Cab', brewery: 'Brouwerij', type: 'neipa', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 5.5, ibu: 25, og: 13, price: 480, rating: 4.4, image: '', desc: 'Европейский Hazy IPA.', nutrition: { kcal: 44, p: 0.3, f: 0, c: 3.9 } },
-  { id: 17, name: 'Magic Drop', brewery: 'Paradox', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.8, ibu: 28, og: 16, price: 330, rating: 4.5, image: '', desc: 'Galaxy и Sabro. Оттенки кокоса и персика.', nutrition: { kcal: 55, p: 0.5, f: 0, c: 4.6 } },
-  { id: 18, name: 'Overhype', brewery: 'AF Brew', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 7.5, ibu: 40, og: 17, price: 450, rating: 4.8, image: '', desc: 'Переохмеленный мутный эль.', nutrition: { kcal: 62, p: 0.7, f: 0, c: 5.2 } },
-  { id: 19, name: 'Neon', brewery: 'Bakunin', type: 'neipa', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 6.5, ibu: 30, og: 15, price: 290, rating: 4.3, image: '', desc: 'Мягкий мутный эль.', nutrition: { kcal: 50, p: 0.4, f: 0, c: 4.3 } },
-  { id: 20, name: 'Cloudy Moscow', brewery: 'Zavod', type: 'neipa', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.2, ibu: 22, og: 14.5, price: 310, rating: 4.4, image: '', desc: 'Свежий и сочный IPA.', nutrition: { kcal: 49, p: 0.4, f: 0, c: 4.1 } },
-  { id: 21, name: 'Guinness Draught', brewery: 'Guinness', type: 'stout', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 4.2, ibu: 45, og: 10, price: 550, rating: 4.5, image: '', desc: 'Ирландский сухой стаут.', nutrition: { kcal: 35, p: 0.3, f: 0, c: 3.0 } },
-  { id: 22, name: 'Lobotomy', brewery: 'AF Brew', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 12.5, ibu: 50, og: 30, price: 1050, rating: 4.95, image: '', desc: 'Русский имперский стаут.', nutrition: { kcal: 95, p: 1.2, f: 0.5, c: 10.5 } },
-  { id: 23, name: 'Milk Stout', brewery: "Salden's", type: 'stout', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 6.0, ibu: 25, og: 16, price: 320, rating: 4.6, image: '', desc: 'Молочный стаут с лактозой.', nutrition: { kcal: 58, p: 0.6, f: 0, c: 5.5 } },
-  { id: 24, name: 'Раскольников', brewery: 'Craft Brew Riots', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 9.5, ibu: 60, og: 22, price: 390, rating: 4.7, image: '', desc: 'Суровый имперский стаут.', nutrition: { kcal: 78, p: 0.9, f: 0, c: 7.2 } },
-  { id: 25, name: 'Black Sails', brewery: 'Victory Art Brew', type: 'stout', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 50, og: 15, price: 310, rating: 4.5, image: '', desc: 'Black IPA / Porter.', nutrition: { kcal: 50, p: 0.5, f: 0, c: 4.3 } },
-  { id: 26, name: 'Достоевский', brewery: 'Brewlok', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 10.0, ibu: 45, og: 24, price: 420, rating: 4.8, image: '', desc: 'Балтийский портер.', nutrition: { kcal: 82, p: 0.8, f: 0, c: 7.5 } },
-  { id: 27, name: 'Дурачок', brewery: 'Jaws', type: 'stout', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.5, ibu: 30, og: 14, price: 280, rating: 4.4, image: '', desc: 'Овсяный стаут.', nutrition: { kcal: 48, p: 0.5, f: 0.2, c: 4.5 } },
-  { id: 28, name: 'Eclipse', brewery: 'FiftyFifty', type: 'stout', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 11.9, ibu: 40, og: 28, price: 1800, rating: 4.9, image: '', desc: 'Культовый имперский стаут.', nutrition: { kcal: 90, p: 1.0, f: 0, c: 9.0 } },
-  { id: 29, name: 'Меланхолия', brewery: 'Bakunin', type: 'stout', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 10.5, ibu: 65, og: 25, price: 450, rating: 4.7, image: '', desc: 'Плотный балтийский портер.', nutrition: { kcal: 85, p: 0.9, f: 0, c: 8.0 } },
-  { id: 30, name: 'Motor', brewery: 'Paradox', type: 'stout', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 7.0, ibu: 35, og: 17, price: 330, rating: 4.3, image: '', desc: 'Классический крепкий портер.', nutrition: { kcal: 58, p: 0.6, f: 0, c: 5.2 } },
-  { id: 31, name: 'Доза', brewery: '4Brewers', type: 'sour', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 0, og: 16, price: 340, rating: 4.8, image: '', desc: 'Густое смузи-саур.', nutrition: { kcal: 60, p: 0.5, f: 0, c: 8.5 } },
-  { id: 32, name: 'Ищу Человека', brewery: 'Jaws', type: 'sour', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.65, ibu: 0, og: 13.5, price: 310, rating: 4.7, image: '', desc: 'Фландрийский красный эль.', nutrition: { kcal: 45, p: 0.4, f: 0, c: 4.2 } },
-  { id: 33, name: 'Sour Flow', brewery: 'Panzer', type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 4.2, ibu: 10, og: 11, price: 290, rating: 4.5, image: '', desc: 'Саур с малиной и ежевикой.', nutrition: { kcal: 38, p: 0.3, f: 0, c: 4.0 } },
-  { id: 34, name: 'Berry Blood', brewery: 'Zavod', type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 12, price: 320, rating: 4.6, image: '', desc: 'Кислая вишня и смородина.', nutrition: { kcal: 42, p: 0.4, f: 0, c: 4.5 } },
-  { id: 35, name: 'Acid Reach', brewery: 'Stamm', type: 'sour', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 6.5, ibu: 0, og: 15, price: 380, rating: 4.8, image: '', desc: 'Мощный саур с персиком.', nutrition: { kcal: 55, p: 0.5, f: 0, c: 6.0 } },
-  { id: 36, name: 'Love Memory', brewery: 'Zagovor', type: 'sour', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 5.5, ibu: 0, og: 14, price: 350, rating: 4.7, image: '', desc: 'Кисло-сладкий эль с клубникой.', nutrition: { kcal: 48, p: 0.4, f: 0, c: 5.5 } },
-  { id: 37, name: 'Neon Fields', brewery: 'Paradox', type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 6.0, ibu: 0, og: 15, price: 360, rating: 4.6, image: '', desc: 'Смузи с маракуйей и гуавой.', nutrition: { kcal: 56, p: 0.5, f: 0, c: 7.0 } },
-  { id: 38, name: 'Duchesse de Bourgogne', brewery: 'Verhaeghe', type: 'sour', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 6.2, ibu: 11, og: 16, price: 650, rating: 4.9, image: '', desc: 'Бельгийская классика.', nutrition: { kcal: 50, p: 0.4, f: 0, c: 5.2 } },
-  { id: 39, name: 'Passion', brewery: "Salden's", type: 'sour', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 300, rating: 4.5, image: '', desc: 'Чистый кислый эль с маракуйей.', nutrition: { kcal: 44, p: 0.4, f: 0, c: 4.8 } },
-  { id: 40, name: 'Crimson Flow', brewery: 'Panzer', type: 'sour', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 4.5, ibu: 10, og: 12, price: 270, rating: 4.3, image: '', desc: 'Летний саур с гранатом и вишней.', nutrition: { kcal: 40, p: 0.3, f: 0, c: 4.2 } },
-  { id: 41, name: 'Зависимость', brewery: '4Brewers', type: 'gose', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 320, rating: 4.8, image: '', desc: 'Знаменитое томатное гозе.', nutrition: { kcal: 46, p: 0.5, f: 0, c: 5.0 } },
-  { id: 42, name: 'Salty Dog', brewery: 'Bakunin', type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 10, og: 13, price: 290, rating: 4.5, image: '', desc: 'Классический лейпцигский гозе.', nutrition: { kcal: 40, p: 0.4, f: 0, c: 4.0 } },
-  { id: 43, name: 'Чили Томат', brewery: 'Таркос', type: 'gose', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 4.5, ibu: 0, og: 12, price: 260, rating: 4.6, image: '', desc: 'Острая версия томатного гозе.', nutrition: { kcal: 42, p: 0.6, f: 0, c: 4.5 } },
-  { id: 44, name: 'Pizza Boy', brewery: 'Zavod', type: 'gose', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 5.5, ibu: 0, og: 14, price: 340, rating: 4.7, image: '', desc: 'Гозе со вкусом пиццы Маргарита.', nutrition: { kcal: 48, p: 0.5, f: 0, c: 5.2 } },
-  { id: 45, name: 'Bloody Mary', brewery: "Salden's", type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 310, rating: 4.5, image: '', desc: 'Гозе с сельдереем и табаско.', nutrition: { kcal: 45, p: 0.5, f: 0, c: 5.0 } },
-  { id: 46, name: 'Michelada', brewery: 'Panzer', type: 'gose', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 4.8, ibu: 0, og: 12.5, price: 300, rating: 4.6, image: '', desc: 'Мексиканский коктейль в гозе.', nutrition: { kcal: 43, p: 0.4, f: 0, c: 4.6 } },
-  { id: 47, name: 'Gazpacho', brewery: 'Paradox', type: 'gose', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 5.5, ibu: 0, og: 14, price: 330, rating: 4.7, image: '', desc: 'Суп-гозе. Огурец, перец, чеснок.', nutrition: { kcal: 45, p: 0.6, f: 0, c: 4.8 } },
-  { id: 48, name: 'Ocean', brewery: 'Stamm', type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 0, og: 13, price: 350, rating: 4.4, image: '', desc: 'Фруктовый гозе с гуавой.', nutrition: { kcal: 48, p: 0.3, f: 0, c: 6.0 } },
-  { id: 49, name: 'Sea Salt', brewery: 'Jaws', type: 'gose', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 4.5, ibu: 12, og: 11, price: 280, rating: 4.3, image: '', desc: 'Пшеничное пиво с солью.', nutrition: { kcal: 38, p: 0.4, f: 0, c: 3.8 } },
-  { id: 50, name: 'Spicy Tomato', brewery: 'Big Village', type: 'gose', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 6.0, ibu: 0, og: 15, price: 360, rating: 4.8, image: '', desc: 'Острое томатное гозе.', nutrition: { kcal: 50, p: 0.7, f: 0, c: 5.5 } },
-  { id: 51, name: 'Хамовники Пильзенское', brewery: 'МПК', type: 'lager', origin: 'ru', onTap: true, isPromo: true, isNotBeer: false, abv: 4.8, ibu: 35, og: 12, price: 190, rating: 4.5, image: '', desc: 'Идеальный российский пилснер.', nutrition: { kcal: 42, p: 0.4, f: 0, c: 3.5 } },
-  { id: 52, name: 'Pilsner Urquell', brewery: 'Plzeňský Prazdroj', type: 'lager', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 4.4, ibu: 40, og: 11.8, price: 450, rating: 4.9, image: '', desc: 'Отец всех пилснеров.', nutrition: { kcal: 40, p: 0.4, f: 0, c: 3.3 } },
-  { id: 53, name: 'Жигули Барное', brewery: 'МПК', type: 'lager', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 4.9, ibu: 20, og: 12, price: 150, rating: 4.2, image: '', desc: 'Классический светлый лагер.', nutrition: { kcal: 43, p: 0.4, f: 0, c: 3.8 } },
-  { id: 54, name: 'Spaten München', brewery: 'Spaten', type: 'lager', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 5.2, ibu: 21, og: 11.7, price: 420, rating: 4.6, image: '', desc: 'Мюнхенский хеллес.', nutrition: { kcal: 45, p: 0.4, f: 0, c: 3.5 } },
-  { id: 55, name: 'Венское', brewery: 'Таркос', type: 'lager', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 4.5, ibu: 15, og: 11, price: 210, rating: 4.3, image: '', desc: 'Янтарный лагер в венском стиле.', nutrition: { kcal: 41, p: 0.4, f: 0, c: 3.6 } },
-  { id: 56, name: 'Krombacher Pils', brewery: 'Krombacher', type: 'lager', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 4.8, ibu: 24, og: 11.2, price: 380, rating: 4.5, image: '', desc: 'Немецкий пилснер.', nutrition: { kcal: 39, p: 0.4, f: 0, c: 3.0 } },
-  { id: 57, name: 'Stella Artois', brewery: 'Stella Artois', type: 'lager', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 24, og: 11.5, price: 320, rating: 4.2, image: '', desc: 'Бельгийский светлый лагер.', nutrition: { kcal: 40, p: 0.4, f: 0, c: 3.2 } },
-  { id: 58, name: 'Tsingtao', brewery: 'Tsingtao', type: 'lager', origin: 'import', onTap: false, isPromo: true, isNotBeer: false, abv: 4.7, ibu: 15, og: 11, price: 280, rating: 4.1, image: '', desc: 'Китайский лагер.', nutrition: { kcal: 38, p: 0.3, f: 0, c: 3.1 } },
-  { id: 59, name: 'Kellerbier', brewery: "Salden's", type: 'lager', origin: 'ru', onTap: true, isPromo: false, isNotBeer: false, abv: 4.5, ibu: 20, og: 12, price: 260, rating: 4.4, image: '', desc: 'Нефильтрованный лагер.', nutrition: { kcal: 43, p: 0.5, f: 0, c: 3.5 } },
-  { id: 60, name: 'Budweiser', brewery: 'Budweiser', type: 'lager', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 5.0, ibu: 12, og: 11, price: 250, rating: 4.0, image: '', desc: 'Американский легкий лагер.', nutrition: { kcal: 35, p: 0.2, f: 0, c: 2.8 } },
-  { id: 61, name: 'Zero Point', brewery: 'Jaws', type: 'na', origin: 'ru', onTap: false, isPromo: false, isNotBeer: false, abv: 0.5, ibu: 20, og: 5, price: 290, rating: 4.7, image: '', desc: 'Безалкогольный эль.', nutrition: { kcal: 22, p: 0.2, f: 0, c: 4.5 } },
-  { id: 62, name: "Don't Worry Baby", brewery: 'Jaws', type: 'na', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 0.5, ibu: 30, og: 6, price: 310, rating: 4.8, image: '', desc: 'Безалкогольный APA.', nutrition: { kcal: 25, p: 0.3, f: 0, c: 5.0 } },
-  { id: 63, name: 'Clausthaler Original', brewery: 'Binding', type: 'na', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 0.4, ibu: 25, og: 6, price: 350, rating: 4.6, image: '', desc: 'Безалкогольный пилснер.', nutrition: { kcal: 26, p: 0.2, f: 0, c: 5.6 } },
-  { id: 64, name: 'Балтика 0', brewery: 'Балтика', type: 'na', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 0.5, ibu: 10, og: 5, price: 120, rating: 4.0, image: '', desc: 'Самое популярное б/а пиво.', nutrition: { kcal: 30, p: 0.3, f: 0, c: 6.5 } },
-  { id: 65, name: 'Stella Artois N.A.', brewery: 'Stella Artois', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.0, ibu: 15, og: 5, price: 250, rating: 4.2, image: '', desc: 'Безалкогольный бельгийский лагер.', nutrition: { kcal: 18, p: 0.2, f: 0, c: 4.0 } },
-  { id: 66, name: 'Heineken 0.0', brewery: 'Heineken', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.0, ibu: 14, og: 5, price: 230, rating: 4.3, image: '', desc: 'Идеальный ноль.', nutrition: { kcal: 21, p: 0.2, f: 0, c: 4.8 } },
-  { id: 67, name: 'Hoegaarden 0.0', brewery: 'Hoegaarden', type: 'na', origin: 'import', onTap: true, isPromo: false, isNotBeer: false, abv: 0.0, ibu: 10, og: 6, price: 260, rating: 4.5, image: '', desc: 'Безалкогольный витбир.', nutrition: { kcal: 27, p: 0.3, f: 0, c: 6.0 } },
-  { id: 68, name: 'Amstel 0.0 Natur', brewery: 'Amstel', type: 'na', origin: 'ru', onTap: false, isPromo: true, isNotBeer: false, abv: 0.0, ibu: 12, og: 5, price: 150, rating: 4.1, image: '', desc: 'Безалкогольный напиток.', nutrition: { kcal: 20, p: 0.2, f: 0, c: 4.5 } },
-  { id: 69, name: 'Weihenstephaner N/A', brewery: 'Weihenstephan', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.5, ibu: 14, og: 6, price: 420, rating: 4.8, image: '', desc: 'Эталонное безалкогольное пшеничное.', nutrition: { kcal: 25, p: 0.4, f: 0, c: 5.2 } },
-  { id: 70, name: "Maisel's Weisse Alkoholfrei", brewery: 'Maisel', type: 'na', origin: 'import', onTap: false, isPromo: false, isNotBeer: false, abv: 0.4, ibu: 12, og: 6, price: 400, rating: 4.7, image: '', desc: 'Баварское безалкогольное пшеничное.', nutrition: { kcal: 23, p: 0.4, f: 0, c: 4.9 } },
-  { id: 101, name: 'Футболка Prime', brewery: 'Prime Store', type: 'merch', origin: 'not_beer', onTap: false, isPromo: false, isNotBeer: true, price: 1800, rating: 5.0, image: '', desc: 'Плотный хлопок 100%.' },
-  { id: 102, name: 'Тюльпан Prime', brewery: 'Prime Glass', type: 'merch', origin: 'not_beer', onTap: false, isPromo: false, isNotBeer: true, price: 600, rating: 4.9, image: '', desc: 'Идеальный бокал для IPA.' },
-  { id: 103, name: 'Худи "Hop Head"', brewery: 'Prime Store', type: 'merch', origin: 'not_beer', onTap: false, isPromo: true, isNotBeer: true, price: 3500, rating: 4.8, image: '', desc: 'Оверсайз-худи с вышивкой хмеля.' },
-  { id: 201, name: 'Ghost in the Machine', brewery: 'Parish', type: 'neipa', origin: 'archive', onTap: false, isPromo: false, isNotBeer: false, abv: 8.5, ibu: 40, og: 18, price: 950, rating: 4.9, image: '', desc: 'Легендарный DIPA, которого больше нет.' },
-  { id: 202, name: 'Kentucky Brunch', brewery: 'Toppling Goliath', type: 'stout', origin: 'archive', onTap: false, isPromo: false, isNotBeer: false, abv: 12.0, ibu: 45, og: 30, price: 2500, rating: 5.0, image: '', desc: 'Один из лучших стаутов в мире. Выпит.' },
-  { id: 301, name: 'Pliny the Younger', brewery: 'Russian River', type: 'ipa', origin: 'soon', onTap: false, isPromo: false, isNotBeer: false, abv: 10.25, ibu: 90, og: 20, price: 1200, rating: 5.0, image: '', desc: 'Тройной IPA. Ожидается поставка.' },
-  { id: 302, name: 'Double Daisy Cutter', brewery: 'Half Acre', type: 'pale', origin: 'soon', onTap: false, isPromo: false, isNotBeer: false, abv: 8.0, ibu: 60, og: 17, price: 650, rating: 4.6, image: '', desc: 'Мощный пейл эль на подходе.' }
-];
-
-MOCK_ITEMS.forEach(item => {
-  if (item.isPromo) {
-    const discount = Math.random() * 0.25 + 0.05; // 5% to 30%
-    item.oldPrice = Math.round(item.price / (1 - discount) / 10) * 10;
-  }
-});
-
-// =======================
-// 3. ВЕКТОРНЫЕ ЗАГЛУШКИ
-// =======================
-const BeerCanIcon = ({ color, label, className }) => (
-  <svg viewBox="0 0 100 200" className={className} preserveAspectRatio="xMidYMid meet">
-    <defs>
-      <linearGradient id={`canGrad-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#d4d4d8" /><stop offset="15%" stopColor="#ffffff" /><stop offset="85%" stopColor="#a1a1aa" /><stop offset="100%" stopColor="#71717a" />
-      </linearGradient>
-      <linearGradient id={`labelGrad-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor={color} /><stop offset="15%" stopColor="#ffffff" stopOpacity="0.3" /><stop offset="85%" stopColor="#000000" stopOpacity="0.1" /><stop offset="100%" stopColor="#000000" stopOpacity="0.4" />
-      </linearGradient>
-    </defs>
-    <rect x="25" y="15" width="50" height="8" rx="2" fill="#a1a1aa" />
-    <rect x="25" y="15" width="50" height="8" rx="2" fill={`url(#canGrad-${label})`} opacity="0.5" />
-    <path d="M22 23 Q 50 28 78 23 L80 177 Q 50 182 20 177 Z" fill={`url(#canGrad-${label})`} />
-    <path d="M21 50 L79 50 L80 150 L20 150 Z" fill={color} />
-    <path d="M21 50 L79 50 L80 150 L20 150 Z" fill={`url(#labelGrad-${label})`} />
-    <text x="50" y="110" fontFamily="Russo One, Montserrat, sans-serif" fontSize="24" fontWeight="400" fill="#ffffff" textAnchor="middle" transform="rotate(-90 50 100)" letterSpacing="4">{label}</text>
-    <path d="M20 177 Q 50 185 80 177 L76 185 Q 50 190 24 185 Z" fill="#71717a" />
-  </svg>
-);
-
-const BeerBottleIcon = ({ bottleColor, labelColor, label, className }) => (
-  <svg viewBox="0 0 100 200" className={className} preserveAspectRatio="xMidYMid meet">
-    <defs>
-      <linearGradient id={`bottleGrad-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#2b1408" /><stop offset="20%" stopColor={bottleColor} /><stop offset="80%" stopColor="#1a0a03" /><stop offset="100%" stopColor="#0d0401" />
-      </linearGradient>
-      <linearGradient id={`glassReflect-${label}`} x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="5%" stopColor="#ffffff" stopOpacity="0.5" /><stop offset="15%" stopColor="#ffffff" stopOpacity="0" />
-      </linearGradient>
-    </defs>
-    <rect x="40" y="5" width="20" height="7" rx="1" fill="#eab308" />
-    <path d="M43 12 L57 12 L60 60 L40 60 Z" fill={`url(#bottleGrad-${label})`} />
-    <path d="M43 12 L57 12 L60 60 L40 60 Z" fill={`url(#glassReflect-${label})`} />
-    <path d="M40 60 Q 75 65 80 100 L80 190 Q 50 198 20 190 L20 100 Q 25 65 40 60 Z" fill={`url(#bottleGrad-${label})`} />
-    <path d="M40 60 Q 75 65 80 100 L80 190 Q 50 198 20 190 L20 100 Q 25 65 40 60 Z" fill={`url(#glassReflect-${label})`} />
-    <rect x="25" y="110" width="50" height="55" fill={labelColor} rx="3" />
-    <rect x="25" y="110" width="50" height="55" fill="#000000" opacity="0.2" rx="3" />
-    <circle cx="50" cy="137" r="15" fill="#ffffff" opacity="0.9" />
-    <text x="50" y="142" fontFamily="Russo One, Montserrat, sans-serif" fontSize="12" fontWeight="400" fill="#000000" textAnchor="middle">{label}</text>
-  </svg>
-);
-
-const ItemImage = ({ item, className }) => {
-  if (item.isNotBeer) return <Package size={48} className={`text-white/80 drop-shadow-lg ${className}`} />;
-  // All beer uses the same bottle PNG (no background) — served from /public
-  return <img src="/bottle.png" alt={item.name} className={className} style={{ objectFit: 'contain' }} draggable={false} loading="lazy" decoding="async" />;
-};
-
-// Литраж: ∞ для крана, 0.33 для импорта/крепкого, 0.5 — стандарт, 0.7 — barleywine/BA/RIS
-const getVolumeLabel = (item) => {
-  if (item.isNotBeer) return null;
-  if (item.onTap) return '0.5 Л';
-  if (item.type === 'barleywine' || item.type === 'ris' || item.type === 'barrel_aged') return '0.7 Л';
-  if (item.origin === 'import' || item.abv >= 9) return '0.33 Л';
-  return '0.5 Л';
-};
-
-// =======================
-// 4. ПУЗЫРЬКИ
-// =======================
-const BeerBubblesCanvas = () => {
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const perfTier = document.documentElement.dataset.perfTier || 'mid';
-    const dpr = perfTier === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-    const setSize = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = w + 'px';
-      canvas.style.height = h + 'px';
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    setSize();
-    window.addEventListener('resize', setSize);
-
-    // Wave midline in WORLD (page) coordinates. The header wave occupies 20px at
-    // the bottom of the header, with its wavy region between y=0 (crests) and
-    // y=10 (troughs) in SVG coords. With bottom-[-1px], that maps in screen
-    // space to: trough = header_bottom - 9, crest = header_bottom - 19. The
-    // MIDLINE (around which the sine oscillates) is header_bottom - 14.
-    let waveMidWorld = 280;
-    // Half-amplitude in px. Wave is 10px peak-to-peak, so amplitude = 5.
-    const waveAmplitude = 5;
-    const scrollEl = document.querySelector('main');
-    const measureWave = () => {
-      const header = document.querySelector('header');
-      if (header && scrollEl) {
-        const headerRect = header.getBoundingClientRect();
-        const mainRect = scrollEl.getBoundingClientRect();
-        waveMidWorld = Math.max(0, (headerRect.bottom - mainRect.top) + scrollEl.scrollTop - 14);
-      }
-    };
-    measureWave();
-    const ro = new ResizeObserver(measureWave);
-    const headerEl = document.querySelector('header');
-    if (headerEl) ro.observe(headerEl);
-    window.addEventListener('resize', measureWave);
-
-    const getScrollTop = () => (scrollEl ? scrollEl.scrollTop : 0);
-
-    // Surface Y in WORLD coords at screen-x `x` and time `now` (ms). Matches the
-    // wave-smooth 6-second linear translate: wave period is viewport/2 (there are
-    // two wave cycles visible across the viewport), and over 6s the pattern shifts
-    // left by one viewport width. All HeaderWave instances synchronize to
-    // (performance.now() % 6000), so we use the same reference here and the
-    // popping location lines up with what the user actually sees.
-    const surfaceAtX = (x, now) => {
-      const vw = window.innerWidth;
-      const shift = ((now % 6000) / 6000) * vw;
-      const phase = (4 * Math.PI * (x + shift)) / vw;
-      return waveMidWorld - Math.sin(phase) * waveAmplitude;
-    };
-
-    // mode: 'spread' = distribute across visible viewport (initial + catch-up respawn)
-    //       'below'  = spawn just below viewport bottom (natural pop respawn)
-    const makeBubble = (mode = 'spread') => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const scrollTop = getScrollTop();
-      // Spawn below the wave's peak line (waveMidWorld - amplitude) so no bubble
-      // starts inside the wave region.
-      const topBound = Math.max(waveMidWorld + waveAmplitude + 20, scrollTop);
-      const bottomBound = scrollTop + vh;
-      const worldY = mode === 'below'
-        ? bottomBound + Math.random() * 60
-        : topBound + Math.random() * Math.max(bottomBound - topBound, 1);
-      return {
-        x: Math.random() * vw,
-        worldY,
-        size: Math.random() * 4.5 + 1.2,
-        baseSize: 0,
-        speed: Math.random() * 0.6 + 0.25,
-        drift: Math.random() * 0.6,
-        phase: Math.random() * Math.PI * 2,
-        opacity: Math.random() * 0.45 + 0.3,
-        popping: false,
-        popFrame: 0,
-        popY: 0,
-      };
-    };
-    const bubbleCount = perfTier === 'low' ? 120 : perfTier === 'mid' ? 280 : 450;
-    const frameSkip = perfTier === 'low' ? 2 : 1;
-    let frameCount = 0;
-    const bubbles = Array.from({ length: bubbleCount }).map(() => {
-      const b = makeBubble('spread');
-      b.baseSize = b.size;
-      return b;
-    });
-    let animId;
-    const animate = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const scrollTop = getScrollTop();
-      const now = performance.now();
-      frameCount++;
-      if (frameCount % frameSkip !== 0) {
-        animId = requestAnimationFrame(animate);
-        return;
-      }
-      ctx.clearRect(0, 0, vw, vh);
-      bubbles.forEach(b => {
-        if (b.popping) {
-          b.popFrame++;
-          const popDuration = 15;
-          const t = b.popFrame / popDuration;
-          if (t >= 1) {
-            const nb = makeBubble('below');
-            nb.baseSize = nb.size;
-            Object.assign(b, nb);
-            return;
-          }
-          const popSize = b.baseSize * (1 + t * 1.2);
-          const popAlpha = b.opacity * (1 - t);
-          // Pop at the surface Y where the bubble actually hit the wave (captured
-          // at contact time so the pop animation stays anchored even as the wave
-          // continues moving).
-          const drawY = b.popY - scrollTop;
-          ctx.strokeStyle = `rgba(255, 255, 255, ${popAlpha})`;
-          ctx.lineWidth = 0.8;
-          ctx.beginPath();
-          ctx.arc(b.x, drawY, popSize, 0, Math.PI * 2);
-          ctx.stroke();
-          return;
-        }
-        b.worldY -= b.speed;
-        b.x += Math.sin(b.phase) * (b.drift * 0.1);
-        b.phase += 0.012;
-        if (b.x < -20) b.x = vw + 20;
-        if (b.x > vw + 20) b.x = -20;
-        // Compute the wave surface Y at this bubble's current x. Pop when the
-        // bubble's rising Y crosses the surface — so crests catch bubbles
-        // earlier and troughs let them rise further. This makes the pop line
-        // dance with the wave visually.
-        const surface = surfaceAtX(b.x, now);
-        if (b.worldY < surface) {
-          b.popping = true;
-          b.popFrame = 0;
-          b.popY = surface;
-          return;
-        }
-        // Respawn bubbles that drifted out of the visible area after a big scroll jump.
-        // Spread them across the viewport so they appear immediately, not trickle in from bottom.
-        if (b.worldY < scrollTop - 80 || b.worldY > scrollTop + vh + 200) {
-          const nb = makeBubble('spread');
-          nb.baseSize = nb.size;
-          Object.assign(b, nb);
-          return;
-        }
-        const screenY = b.worldY - scrollTop;
-        if (screenY < -40 || screenY > vh + 40) return;
-        ctx.fillStyle = `rgba(255, 255, 255, ${b.opacity})`;
-        ctx.beginPath();
-        ctx.arc(b.x, screenY, b.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      animId = requestAnimationFrame(animate);
-    };
-    animId = requestAnimationFrame(animate);
-    return () => {
-      window.removeEventListener('resize', setSize);
-      window.removeEventListener('resize', measureWave);
-      ro.disconnect();
-      cancelAnimationFrame(animId);
-    };
-  }, []);
-  return <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 29 }} />;
-};
-
-// =======================
-// 4b. ПУЗЫРЬКИ В ПЕНЕ (хедер)
-// =======================
-const FoamBubblesCanvas = () => {
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const parent = canvas.parentElement;
-    const setSize = () => {
-      canvas.width = parent.offsetWidth;
-      canvas.height = parent.offsetHeight;
-    };
-    setSize();
-    const ro = new ResizeObserver(setSize);
-    ro.observe(parent);
-    const respawn = (b) => {
-      b.x = Math.random() * canvas.width;
-      b.y = Math.random() * canvas.height;
-      b.size = Math.random() * 10 + 5;
-      b.maxSize = b.size;
-      b.speedX = (Math.random() - 0.5) * 0.6;
-      b.speedY = (Math.random() - 0.5) * 0.4 - 0.15;
-      b.phase = Math.random() * Math.PI * 2;
-      b.opacity = Math.random() * 0.5 + 0.2;
-      b.life = 0;
-      b.maxLife = Math.random() * 300 + 200;
-      b.popping = false;
-      b.popFrame = 0;
-    };
-    const perfTier = document.documentElement.dataset.perfTier || 'mid';
-    const bubbleCount = perfTier === 'low' ? 15 : perfTier === 'mid' ? 30 : 50;
-    const frameSkip = perfTier === 'low' ? 2 : 1;
-    let frameCount = 0;
-    const bubbles = Array.from({ length: bubbleCount }).map(() => {
-      const b = {};
-      respawn(b);
-      b.life = Math.random() * b.maxLife;
-      return b;
-    });
-    let animationId;
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      frameCount++;
-      if (frameCount % frameSkip !== 0) {
-        animationId = requestAnimationFrame(animate);
-        return;
-      }
-      bubbles.forEach(b => {
-        b.life++;
-        if (b.popping) {
-          b.popFrame++;
-          const popProgress = b.popFrame / 12;
-          const popSize = b.maxSize * (1 + popProgress * 0.6);
-          const popOpacity = b.opacity * (1 - popProgress);
-          if (popProgress >= 1) { respawn(b); return; }
-          ctx.strokeStyle = `rgba(140, 100, 50, ${popOpacity * 0.7})`;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, popSize, 0, Math.PI * 2);
-          ctx.stroke();
-          return;
-        }
-        if (b.life > b.maxLife) { b.popping = true; return; }
-        b.x += b.speedX + Math.sin(b.phase) * 0.3;
-        b.y += b.speedY;
-        b.phase += 0.02;
-        if (b.x < -10 || b.x > canvas.width + 10 || b.y < -10 || b.y > canvas.height - 20) { respawn(b); return; }
-        const fadeIn = Math.min(b.life / 30, 1);
-        const fadeOut = Math.min((b.maxLife - b.life) / 30, 1);
-        const alpha = b.opacity * fadeIn * fadeOut;
-        ctx.strokeStyle = `rgba(140, 100, 50, ${alpha * 0.7})`;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-        ctx.stroke();
-      });
-      animationId = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => { ro.disconnect(); cancelAnimationFrame(animationId); };
-  }, []);
-  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-[1] opacity-80" />;
-};
-
-// =======================
-// 4c. HEADER WAVE — single shared foam wave, synchronized across header + body
-// =======================
-// Every instance captures the current position of the 6s `wave-smooth` cycle at mount
-// time and rewinds its animation by that amount via a negative `animation-delay`. Because
-// every wave renders the same path at the same phase, they translate as one continuous
-// ribbon — the header and any modal/pour wave stay locked in step, even when a modal
-// mounts seconds after the app started.
-const HeaderWave = React.memo(function HeaderWave({ className = '', style, fill = '#FFF8E7' }) {
-  const animationDelay = useMemo(
-    () => `-${performance.now() % 6000}ms`,
-    []
-  );
-  // Color transition is matched BYTE-FOR-BYTE to the foam mask's `background-color`
-  // transition in the header (`500ms cubic-bezier(0.4, 0, 0.2, 1) 900ms`). That mask
-  // is painted BEHIND the wave, so if their timings differ by even a few ms the wave
-  // looks like a decoupled element changing color on its own. With matched timing
-  // the wave is perceived as just the upper edge of the foam repaint — one seamless
-  // element. Using CSS `color` + SVG `fill="currentColor"` is the most reliable way
-  // to transition an SVG fill across React re-renders.
-  const containerStyle = {
-    animationDelay,
-    color: fill,
-    transition: 'color 500ms cubic-bezier(0.4, 0, 0.2, 1) 900ms',
-    ...style,
-  };
-  return (
-    <div
-      className={`w-[200%] h-[20px] flex animate-[wave-smooth_6s_linear_infinite] pointer-events-none ${className}`}
-      style={containerStyle}
-    >
-      <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full" fill="currentColor" style={{ shapeRendering: 'geometricPrecision' }}>
-        <path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" />
-      </svg>
-      <svg viewBox="0 0 1200 20" preserveAspectRatio="none" className="w-[50%] h-full" fill="currentColor" style={{ shapeRendering: 'geometricPrecision' }}>
-        <path d="M0,20 V10 Q150,0 300,10 T600,10 T900,10 T1200,10 V20 Z" />
-      </svg>
-    </div>
-  );
-});
-
-// =======================
-// 5. PRODUCT CARD — memoized to prevent re-rendering all 70 cards on every cart update
-// =======================
-const ProductCard = React.memo(function ProductCard({ item, qty, index, accentColor, accentContrast: _accentContrast, onSelect, onUpdateCart, onBrewerySearch }) {
-  const accentContrast = '#FFFFFF';
-  const isArchive = item.origin === 'archive';
-  const isSoon = item.origin === 'soon';
-  const isOverlay = isArchive || isSoon;
-  const overlayText = isArchive ? 'Закончилось' : (isSoon ? 'Скоро' : '');
-
-  // Entrance animations are driven by the parent grid's `.cards-grid-settling`
-  // class (stagger + blur + overshoot via the card-fly-in keyframe). Using an
-  // inline `animation` style here would override the class selector and lock
-  // cards into the old float-up path — so we deliberately don't set one.
-
-  return (
-    <div onClick={() => onSelect(item)}
-      className="group relative w-full rounded-[24px] overflow-hidden transition-transform liquid-glass cursor-pointer active:scale-[0.98] flex flex-col h-full">
-
-      {!item.isNotBeer && (
-        <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-1">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onBrewerySearch?.(item.brewery); }}
-            className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none truncate min-w-0 block active:scale-[0.94] transition-transform"
-            style={{ color: '#18181B', border: `1px solid rgba(255,255,255,0.6)`, backgroundColor: 'rgba(255,255,255,0.55)' }}
-          >{item.brewery}</button>
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px] shrink-0" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
-            <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
-            <span className="font-display text-[13px] font-bold leading-none" style={{ color: hexToRgba(accentContrast, 0.9) }}>{item.rating}</span>
-          </div>
-        </div>
-      )}
-      <div className="relative flex items-center justify-center h-[130px] pt-1">
-        <ItemImage item={item} className="w-auto h-[110px] drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)] transition-transform duration-500 group-hover:scale-105" />
-        {isOverlay && (
-          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-            <div className="font-display font-black text-[14px] px-5 py-2.5 rounded-[16px] border border-white/70 tracking-[-0.01em] uppercase" style={{
-              backgroundColor: 'rgba(255,255,255,0.35)',
-              color: '#18181b',
-              backdropFilter: 'blur(28px) saturate(1.4)',
-              WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.18), inset 0 1px 1px rgba(255,255,255,0.6)'
-            }}>
-              {overlayText}
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="p-3 pt-1.5 flex-1 flex flex-col">
-        <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
-        {!item.isNotBeer && (
-          <div className="flex flex-wrap gap-1 mb-2.5">
-            <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{getVolumeLabel(item)}</span>
-            <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{item.abv}% ABV</span>
-            <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{item.og}% OG</span>
-            {item.ibu > 0 && <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{item.ibu} IBU</span>}
-          </div>
-        )}
-        <div className="flex items-center justify-between mt-auto pt-2">
-          <div className="flex flex-col justify-center">
-            {item.isPromo && item.oldPrice && (
-              <span className="font-bold text-[11px] line-through opacity-60 mb-0.5" style={{ color: accentContrast }}>{item.oldPrice} ₽</span>
-            )}
-            <span className="font-black text-[16px] leading-none" style={{ color: accentContrast }}>{item.price} ₽</span>
-          </div>
-          {isOverlay ? (
-            <div className="h-8 flex items-center justify-end shrink-0">
-              <div className="rounded-full liquid-glass flex items-center justify-center px-3"
-                   style={{ height: '32px', backgroundColor: hexToRgba(accentContrast, 0.08), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, cursor: 'default' }}
-                   onClick={(e) => e.stopPropagation()}>
-                <span className="font-display font-black text-[10px] uppercase tracking-wide leading-none" style={{ color: hexToRgba(accentContrast, 0.7) }}>{overlayText}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="h-8 flex items-center justify-end shrink-0" style={{ minWidth: '76px' }}>
-              {/* Pill: animate ONLY width + padding + background. Both enter (0→1)
-                  and exit (1→0) run the same 520ms curve so add and remove feel
-                  equally deliberate — no snap-release.  Smaller collapsed width
-                  (78px instead of 92px) keeps long prices like "1050 ₽" on one line. */}
-              <div className="rounded-full liquid-glass overflow-hidden cursor-pointer"
-                   style={{
-                     transition: 'width 520ms cubic-bezier(0.32, 0.72, 0, 1), padding 520ms cubic-bezier(0.32, 0.72, 0, 1), background-color 1400ms ease',
-                     width: qty === 0 ? '32px' : '78px',
-                     height: '32px',
-                     padding: qty === 0 ? '0px' : '2px',
-                     backgroundColor: qty === 0 ? hexToRgba(accentColor, 0.15) : 'transparent',
-                   }}
-                   onClick={(e) => {
-                     if (qty === 0) onUpdateCart(e, item, 1);
-                     else e.stopPropagation();
-                   }}>
-
-                <div className="relative w-full h-full flex items-center justify-center">
-                  {/* Plus icon. On EXIT (pill is growing for an add) it fades
-                      out fast so the counter can take over. On ENTER (pill is
-                      shrinking back after a remove) it fades back in AFTER the
-                      pill has fully closed — mirror of the counter's delay. */}
-                  <div
-                    className="absolute inset-0 flex items-center justify-center"
-                    style={{
-                      opacity: qty === 0 ? 1 : 0,
-                      transform: qty === 0 ? 'scale(1)' : 'scale(0.55)',
-                      pointerEvents: qty === 0 ? 'auto' : 'none',
-                      transition: qty === 0
-                        ? 'opacity 260ms cubic-bezier(0.23, 1, 0.32, 1) 320ms, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1) 320ms'
-                        : 'opacity 140ms cubic-bezier(0.32, 0, 0.67, 0), transform 180ms cubic-bezier(0.32, 0, 0.67, 0)',
-                    }}
-                  >
-                    <Plus size={16} strokeWidth={2.5} style={{ color: accentContrast }} />
-                  </div>
-
-                  {/* Counter for qty > 0. Both directions use a symmetric delay
-                      pattern so add and remove look like mirror images of the
-                      same animation — pill opens/closes then content fades. */}
-                  <div
-                    className="absolute inset-0 flex items-center justify-between px-0.5"
-                    style={{
-                      opacity: qty > 0 ? 1 : 0,
-                      transform: qty > 0 ? 'scale(1)' : 'scale(0.92)',
-                      pointerEvents: qty > 0 ? 'auto' : 'none',
-                      transition: qty > 0
-                        ? 'opacity 260ms cubic-bezier(0.23, 1, 0.32, 1) 320ms, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1) 320ms'
-                        : 'opacity 140ms cubic-bezier(0.32, 0, 0.67, 0), transform 180ms cubic-bezier(0.32, 0, 0.67, 0)',
-                    }}
-                  >
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, -1); }}
-                      className="w-[22px] h-[22px] rounded-full flex items-center justify-center active:scale-[0.88] shrink-0"
-                      style={{
-                        backgroundColor: hexToRgba(accentContrast, 0.14),
-                        border: `1px solid ${hexToRgba(accentContrast, 0.32)}`,
-                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
-                        transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1)',
-                      }}
-                    ><Minus size={11} strokeWidth={3.25} style={{ color: accentContrast }} /></button>
-                    <span className="text-[12px] font-black w-4 text-center tabular-nums" style={{ color: accentContrast }}>{qty}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onUpdateCart(e, item, 1); }}
-                      className="w-[22px] h-[22px] rounded-full flex items-center justify-center active:scale-[0.88] shrink-0"
-                      style={{
-                        backgroundColor: hexToRgba(accentContrast, 0.14),
-                        border: `1px solid ${hexToRgba(accentContrast, 0.32)}`,
-                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
-                        transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1)',
-                      }}
-                    ><Plus size={11} strokeWidth={3.25} style={{ color: accentContrast }} /></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-});
+const INITIAL_VISIBLE_ITEMS = 24;
+const VISIBLE_BATCH_SIZE = 20;
+const LOAD_MORE_THRESHOLD = 720;
 
 // =======================
 // 6. ОСНОВНОЙ КОМПОНЕНТ
@@ -744,14 +36,21 @@ export default function App() {
   const searchInputRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchTerm, setActiveSearchTerm] = useState("");
+  const [searchChipClosing, setSearchChipClosing] = useState(false);
   const [showStory, setShowStory] = useState(false);
   const [storyRead, setStoryRead] = useState(false);
   const [closingSheet, setClosingSheet] = useState(null);
   const [waveAnimating, setWaveAnimating] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [searchChipClosing, setSearchChipClosing] = useState(false);
   const headerRef = useRef(null);
   const mainRef = useRef(null);
+  const [visibleItemCount, setVisibleItemCount] = useState(INITIAL_VISIBLE_ITEMS);
+  const sortOptions = useMemo(() => ([
+    { id: 'rating', label: 'Рейтинг' },
+    { id: 'price', label: 'Цена' },
+    { id: 'abv', label: 'Крепость' },
+    { id: 'og', label: 'Плотность' },
+  ]), []);
 
   // Show the "scroll to top" FAB once the user has scrolled roughly 1.25 viewport
   // heights — earlier than before so it appears as soon as the header has fully
@@ -788,22 +87,21 @@ export default function App() {
     const isNotBeer = activeOrigin?.id === 'not_beer';
     return isNotBeer ? '#8B939C' : (activeCategory.id === 'all_styles' ? '#D9B500' : activeCategory.color);
   }, [activeCategory, activeOrigin]);
-  const isStout = activeCategory.id === 'stout';
-
   const currentItems = useMemo(() => {
     if (!activeOrigin) return [];
-    let result = MOCK_ITEMS;
+    let result = CATALOG_ITEMS;
+    const activeCategoryIds = activeCategory.groupItems || [activeCategory.id];
     if (activeOrigin.id === 'not_beer') {
       result = result.filter(item => item.isNotBeer);
     } else if (activeOrigin.id === 'archive') {
       result = result.filter(item => item.origin === 'archive');
       if (activeCategory && activeCategory.id !== 'all_styles') {
-        result = result.filter(item => item.type === activeCategory.id);
+        result = result.filter(item => activeCategoryIds.includes(item.type));
       }
     } else if (activeOrigin.id === 'soon') {
       result = result.filter(item => item.origin === 'soon');
       if (activeCategory && activeCategory.id !== 'all_styles') {
-        result = result.filter(item => item.type === activeCategory.id);
+        result = result.filter(item => activeCategoryIds.includes(item.type));
       }
     } else {
       result = result.filter(item => !item.isNotBeer && item.origin !== 'archive' && item.origin !== 'soon');
@@ -813,7 +111,7 @@ export default function App() {
       if (activeOrigin.id === 'tap') result = result.filter(b => b.onTap);
       if (activeOrigin.id === 'promo') result = result.filter(b => b.isPromo);
       if (activeCategory && activeCategory.id !== 'all_styles') {
-        result = result.filter(item => item.type === activeCategory.id);
+        result = result.filter(item => activeCategoryIds.includes(item.type));
       }
     }
     if (activeSearchTerm.trim()) {
@@ -826,8 +124,78 @@ export default function App() {
     return result;
   }, [activeOrigin, activeCategory, sortConfig, activeSearchTerm]);
 
-  const cartTotalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotalPrice = cartItems.reduce((sum, item) => sum + (item.item.price * item.quantity), 0);
+  const cartQtyById = useMemo(() => new Map(
+    cartItems.map(({ item, quantity }) => [item.id, quantity])
+  ), [cartItems]);
+  const cartTotalItems = useMemo(() => (
+    cartItems.reduce((sum, item) => sum + item.quantity, 0)
+  ), [cartItems]);
+  const cartTotalPrice = useMemo(() => (
+    cartItems.reduce((sum, item) => sum + (item.item.price * item.quantity), 0)
+  ), [cartItems]);
+  const visibleItems = useMemo(() => (
+    currentItems.slice(0, visibleItemCount)
+  ), [currentItems, visibleItemCount]);
+  const hasSearchMatch = useCallback((query) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return false;
+
+    return CATALOG_ITEMS.some((item) => (
+      !item.isNotBeer &&
+      item.origin !== 'archive' &&
+      item.origin !== 'soon' &&
+      (item.name.toLowerCase().includes(normalizedQuery) || item.brewery.toLowerCase().includes(normalizedQuery))
+    ));
+  }, []);
+
+  // Search for all items from a specific brewery. Resets origin/category to "all"
+  // so the user actually sees everything this brewery makes across styles and sources.
+  // Runs the same fade-out → fly-in choreography as style changes so the list
+  // transition feels intentional, not a snap. Safe to call with any pending sheet —
+  // sheet refs are only closed here if we own them (no-op otherwise).
+  const handleSearchSubmit = useCallback((rawQuery) => {
+    const q = (rawQuery ?? searchQuery).trim();
+    if (!q) return;
+    if (!hasSearchMatch(q)) {
+      flushSync(() => {
+        setShowSearchBar(true);
+        setSearchQuery(q);
+        setActiveSearchTerm("");
+      });
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+      return;
+    }
+
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsTransitioning(true);
+    setTimeout(() => {
+      flushSync(() => {
+        setActiveOrigin(ORIGINS[0]);
+        setActiveCategory(ALL_CATEGORIES[0]);
+        setShowSearchBar(false);
+        setSearchQuery(q);
+        setActiveSearchTerm(q);
+        setIsTransitioning(false);
+        setIsSettling(true);
+      });
+      setTimeout(() => setIsSettling(false), 1080);
+    }, 280);
+  }, [hasSearchMatch, searchQuery]);
+
+  const clearSearch = useCallback(({ keepOpen = true } = {}) => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      flushSync(() => {
+        setActiveSearchTerm("");
+        setSearchQuery("");
+        setShowSearchBar(keepOpen);
+        setIsTransitioning(false);
+        setIsSettling(true);
+      });
+      if (keepOpen) requestAnimationFrame(() => searchInputRef.current?.focus());
+      setTimeout(() => setIsSettling(false), 1080);
+    }, 220);
+  }, []);
 
   // Search for all items from a specific brewery. Resets origin/category to "all"
   // so the user actually sees everything this brewery makes across styles and sources.
@@ -835,23 +203,9 @@ export default function App() {
   // transition feels intentional, not a snap. Safe to call with any pending sheet —
   // sheet refs are only closed here if we own them (no-op otherwise).
   const handleBrewerySearch = useCallback((brewery) => {
-    // Scroll back to the top so the user sees the newly-filtered list and the
-    // search chip floating in, not a half-scrolled middle section.
-    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    setIsTransitioning(true);
-    setTimeout(() => {
-      // Single-commit fading → settling to prevent the intermediate jerk.
-      flushSync(() => {
-        setActiveOrigin(ORIGINS[0]);
-        setActiveCategory(ALL_CATEGORIES[0]);
-        setSearchQuery(brewery);
-        setActiveSearchTerm(brewery);
-        setIsTransitioning(false);
-        setIsSettling(true);
-      });
-      setTimeout(() => setIsSettling(false), 1080);
-    }, 280);
-  }, []);
+    // Scroll back to the top so the user sees the newly-filtered list in context.
+    handleSearchSubmit(brewery);
+  }, [handleSearchSubmit]);
 
   const updateCart = useCallback((e, item, delta) => {
     if (e) e.stopPropagation();
@@ -867,7 +221,53 @@ export default function App() {
     });
   }, []);
 
-  const getQty = (itemId) => cartItems.find(c => c.item.id === itemId)?.quantity || 0;
+  const selectedItemQty = selectedItem ? (cartQtyById.get(selectedItem.id) || 0) : 0;
+
+  useEffect(() => {
+    setVisibleItemCount(Math.min(currentItems.length, INITIAL_VISIBLE_ITEMS));
+  }, [currentItems]);
+
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+
+    let frameId = null;
+    const maybeLoadMore = () => {
+      if (frameId !== null) return;
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        if (visibleItemCount >= currentItems.length) return;
+        const distanceToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
+        if (distanceToBottom <= LOAD_MORE_THRESHOLD) {
+          setVisibleItemCount((prev) => Math.min(currentItems.length, prev + VISIBLE_BATCH_SIZE));
+        }
+      });
+    };
+
+    maybeLoadMore();
+    el.addEventListener('scroll', maybeLoadMore, { passive: true });
+    window.addEventListener('resize', maybeLoadMore);
+
+    return () => {
+      el.removeEventListener('scroll', maybeLoadMore);
+      window.removeEventListener('resize', maybeLoadMore);
+      if (frameId !== null) cancelAnimationFrame(frameId);
+    };
+  }, [currentItems.length, visibleItemCount]);
+
+  const renderedGridItems = useMemo(() => (
+    visibleItems.map((item) => (
+      <ProductCard
+        key={item.id}
+        item={item}
+        qty={cartQtyById.get(item.id) || 0}
+        accentColor={targetAccentColor}
+        onSelect={setSelectedItem}
+        onUpdateCart={updateCart}
+        onBrewerySearch={handleBrewerySearch}
+      />
+    ))
+  ), [visibleItems, cartQtyById, targetAccentColor, updateCart, handleBrewerySearch]);
 
   const closeDetail = useCallback(() => {
     setClosingDetail(true);
@@ -886,10 +286,9 @@ export default function App() {
     setTimeout(() => { setter(false); setClosingSheet(null); }, 220);
   }, []);
 
-  const handleFilterChange = (setSheet, filterFn, isNotBeer = false) => {
+  const handleFilterChange = (setSheet, filterFn) => {
     setSheet(false);
     setIsTransitioning(true);
-    const nextColor = isNotBeer ? '#8B939C' : activeCategory.color;
     setTimeout(() => {
       // flushSync batches these three updates into a SINGLE commit — the grid's
       // class flips straight from `cards-grid-fading` to `cards-grid-settling`
@@ -969,7 +368,17 @@ export default function App() {
     <div className="relative w-full h-[100dvh] font-sans text-zinc-900 select-none overflow-x-hidden" style={{ backgroundColor: displayBgColor, maxWidth: '100vw', transition: 'background-color 500ms cubic-bezier(0.4, 0, 0.2, 1) 900ms' }}>
       <style dangerouslySetInnerHTML={{
         __html: `
-        @font-face { font-family: 'TD Ciryulnik'; src: url('/fonts/td-ciryulnik.woff2') format('woff2'); font-display: swap; }
+        @import url('https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;0,800;0,900;1,400&family=Commissioner:wght@400;500;600;700&family=Russo+One&display=swap');
+        @font-face {
+          font-family: 'TD Ciryulnik';
+          src:
+            local('TD Ciryulnik'),
+            local('TD CIRYULNIK'),
+            url('/fonts/td-ciryulnik.otf') format('opentype');
+          font-style: normal;
+          font-weight: 400;
+          font-display: swap;
+        }
         :root {
           /* Type scale — 1.25 modular ratio, rem-based */
           --text-micro: 0.6875rem;    /* 11px — captions, legal */
@@ -1015,7 +424,8 @@ export default function App() {
           font-variation-settings: normal;
         }
         .font-logo {
-          font-family: 'TD Ciryulnik', 'Russo One', sans-serif;
+          font-family: 'TD Ciryulnik', 'Russo One', sans-serif !important;
+          font-weight: 400;
           text-transform: uppercase;
           letter-spacing: 0.05em;
           font-feature-settings: normal;
@@ -1052,12 +462,13 @@ export default function App() {
           100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
         @keyframes search-chip-out {
-          0%   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-          100% { opacity: 0; transform: translateY(-10px) scale(0.94); filter: blur(6px); }
+          0%   { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(-3px) scale(0.97); }
         }
         @keyframes search-bar-in {
-          0%   { opacity: 0; transform: translateY(-12px); filter: blur(6px); }
-          100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+          0%   { opacity: 0; transform: translateY(-10px) scale(0.985); filter: blur(8px); }
+          55%  { opacity: 1; transform: translateY(1px) scale(1.004); filter: blur(0); }
+          100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
         /* Age gate exit: backdrop fades + gently blurs out, card zooms up and away
            on top of it — layered exit so the user feels a real "stepping through"
@@ -1081,14 +492,6 @@ export default function App() {
             animation-duration: 0.01ms !important;
             transition-duration: 0.01ms !important;
           }
-        }
-        [data-perf-tier="low"] .foam-bg {
-          animation: none !important;
-        }
-        [data-perf-tier="low"] .liquid-glass-subtle {
-          backdrop-filter: none;
-          -webkit-backdrop-filter: none;
-          background: rgba(255,255,255,0.2);
         }
         button { -webkit-tap-highlight-color: transparent; }
         @keyframes beer-rise { 0% { transform: translateY(105%); } 15% { transform: translateY(80%); } 30% { transform: translateY(55%); } 45% { transform: translateY(35%); } 60% { transform: translateY(18%); } 75% { transform: translateY(6%); } 90% { transform: translateY(1%); } 100% { transform: translateY(0); } }
@@ -1117,24 +520,21 @@ export default function App() {
           background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 100%);
           backdrop-filter: blur(6px);
           -webkit-backdrop-filter: blur(6px);
+          isolation: isolate;
+          backface-visibility: hidden;
           border-top: 1px solid rgba(255,255,255,0.4);
           border-left: 1px solid rgba(255,255,255,0.4);
           border-right: 1px solid rgba(255,255,255,0.1);
           border-bottom: 1px solid rgba(255,255,255,0.1);
           box-shadow: 0 8px 24px rgba(0,0,0,0.08), inset 0 1px 1px rgba(255,255,255,0.3);
           transition: background-color 1000ms ease, border-color 1000ms ease, box-shadow 1000ms ease;
-          transform: translateZ(0);
-          -webkit-transform: translateZ(0);
-        }
-        [data-perf-tier="low"] .liquid-glass {
-          backdrop-filter: blur(2px);
-          -webkit-backdrop-filter: blur(2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         }
         .liquid-glass-subtle {
           background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%);
           backdrop-filter: blur(3px);
           -webkit-backdrop-filter: blur(3px);
+          isolation: isolate;
+          backface-visibility: hidden;
           border: 1px solid rgba(255,255,255,0.5);
           box-shadow: 0 2px 6px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.45);
         }
@@ -1148,8 +548,6 @@ export default function App() {
         .cards-grid > * {
           opacity: 1;
           transform: translateY(0) scale(1);
-          will-change: transform, opacity;
-          contain: layout style paint;
         }
         .cards-grid-fading > * {
           opacity: 0;
@@ -1174,17 +572,6 @@ export default function App() {
         .cards-grid-settling > *:nth-child(7)  { animation-delay: 210ms; }
         .cards-grid-settling > *:nth-child(8)  { animation-delay: 245ms; }
         .cards-grid-settling > *:nth-child(n+9) { animation-delay: 280ms; }
-        [data-perf-tier="low"] .cards-grid-settling > * {
-          animation-duration: 300ms;
-        }
-        [data-perf-tier="low"] .cards-grid-fading > * {
-          transition-duration: 150ms;
-        }
-        [data-perf-tier="low"] .fixed .bg-black\/60 {
-          backdrop-filter: none;
-          -webkit-backdrop-filter: none;
-          background: rgba(0,0,0,0.7);
-        }
         @keyframes card-fly-in {
           0%   { opacity: 0; transform: translateY(8px) scale(0.95); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -1216,11 +603,14 @@ export default function App() {
                 ? 'age-card-out 460ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
                 : undefined,
             }}>
-            <div className="w-[80px] h-[80px] mb-5 rounded-full shadow-lg flex items-center justify-center bg-white border-[3px] border-white/60">
-              <div className="font-logo text-[13px] leading-[1.1] flex flex-col items-center pt-0.5" style={{ color: '#C4A265' }}>
-                <span>ПРАЙМ</span><span>БИР</span>
-              </div>
-            </div>
+            <PrimeMark
+              size={88}
+              accentColor="#C4A265"
+              textColor="#C4A265"
+              glass
+              showOrbit={false}
+              className="mb-5"
+            />
             <h1 className="font-display text-[28px] font-black text-center mb-2 text-zinc-800 tracking-[-0.02em] leading-[1.1]">Вам есть 18 лет?</h1>
             <p className="text-center mb-8 text-sm max-w-[260px] font-medium leading-relaxed text-zinc-600">Доступ к приложению разрешен только совершеннолетним пользователям.</p>
             <button
@@ -1282,7 +672,7 @@ export default function App() {
           </div>
         </div>
 
-        <BeerBubblesCanvas />
+        <BeerBubblesCanvas headerRef={headerRef} scrollContainerRef={mainRef} />
         <header ref={headerRef} className="w-full relative" style={{ paddingTop: 'var(--safe-top)' }}>
           <div className="foam-bg pt-4 px-4 pb-6 relative overflow-hidden z-[20]">
             <div className="absolute inset-0 pointer-events-none" style={{
@@ -1294,20 +684,18 @@ export default function App() {
             <FoamBubblesCanvas />
             <div className="flex justify-between items-center h-[70px] relative z-[50]">
               <div className="flex items-center gap-3">
-                <div className="relative w-[56px] h-[56px] rounded-full flex items-center justify-center cursor-pointer active:scale-95 transition-transform" onClick={() => { setShowStory(true); setStoryRead(true); }}>
-                  {storyRead ? (
-                    <div className="absolute inset-0 rounded-full bg-zinc-300" />
-                  ) : (
-                    <div className="absolute inset-0 rounded-full animate-[spin_2.5s_linear_infinite] transition-colors duration-1000"
-                      style={{ background: `conic-gradient(from 0deg, transparent 0%, transparent 40%, ${accentColor} 100%)` }} />
-                  )}
-                  <div className="relative w-[50px] h-[50px] rounded-full bg-white flex items-center justify-center z-10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]">
-                    <div className="font-logo text-[10px] leading-[1.1] flex flex-col items-center pt-0.5 transition-colors duration-1000" style={{ color: accentColor }}>
-                      <span>ПРАЙМ</span><span>БИР</span>
-                    </div>
-                  </div>
-                </div>
-                <button onClick={() => setShowLocationSheet(true)} className="flex flex-col items-start active:opacity-70 text-left ml-1">
+                <PrimeMark
+                  size={56}
+                  accentColor={accentColor}
+                  textColor={accentColor}
+                  animated={!storyRead}
+                  read={storyRead}
+                  showPlate={false}
+                  ariaLabel="Открыть историю"
+                  className="cursor-pointer active:scale-95 transition-transform"
+                  onClick={() => { setShowStory(true); setStoryRead(true); }}
+                />
+                <button type="button" aria-label="Выбрать адрес" onClick={() => setShowLocationSheet(true)} className="flex flex-col items-start active:opacity-70 text-left ml-1">
                   <span className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest mb-0.5">{activeLocation.area}</span>
                   <div className="flex items-center gap-1">
                     <MapPin size={16} style={{ color: accentColor }} className="transition-colors duration-1000" />
@@ -1317,10 +705,21 @@ export default function App() {
                 </button>
               </div>
               <button
+                type="button"
+                aria-label={showSearchBar ? 'Свернуть поиск' : activeSearchTerm ? 'Изменить поиск' : 'Открыть поиск'}
                 onClick={() => {
+                  if (!showSearchBar && activeSearchTerm) {
+                    flushSync(() => {
+                      setActiveSearchTerm("");
+                      setSearchChipClosing(false);
+                      setShowSearchBar(true);
+                      setSearchQuery(searchQuery || activeSearchTerm);
+                    });
+                    requestAnimationFrame(() => searchInputRef.current?.focus());
+                    return;
+                  }
                   if (showSearchBar) {
                     setShowSearchBar(false);
-                    if (!activeSearchTerm) setSearchQuery("");
                     return;
                   }
                   // flushSync forces React to commit the state change + render
@@ -1341,56 +740,91 @@ export default function App() {
                 stay in context. Slides down with a soft overshoot, auto-focused.
                 Enter submits (runs the same fade→fly-in as the brewery search),
                 X collapses. */}
-            {showSearchBar && (
+            {(showSearchBar || activeSearchTerm) && (
               <div
                 className="mt-3 relative z-[50]"
-                style={{ animation: 'search-bar-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both' }}
+                style={{ animation: 'search-bar-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both' }}
               >
-                <div
-                  className="relative flex items-center rounded-[16px] liquid-glass-subtle"
-                  style={{ backgroundColor: hexToRgba(accentColor, 0.12) }}
-                >
-                  <Search size={18} className="absolute left-3.5 text-zinc-500 pointer-events-none" strokeWidth={2.5} />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const q = searchQuery.trim();
-                        if (!q) return;
+                {showSearchBar ? (
+                  <div
+                    className="relative flex items-center rounded-[16px] liquid-glass-subtle"
+                    style={{ backgroundColor: hexToRgba(accentColor, 0.12) }}
+                  >
+                    <Search size={18} className="absolute left-3.5 z-10 text-zinc-500 pointer-events-none" strokeWidth={2.5} />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearchSubmit();
+                        } else if (e.key === 'Escape') {
+                          if (activeSearchTerm) {
+                            clearSearch();
+                          } else {
+                            setShowSearchBar(false);
+                            setSearchQuery("");
+                          }
+                        }
+                      }}
+                      placeholder="Название или пивоварня..."
+                      className="relative z-10 flex-1 pl-11 pr-11 py-3 bg-transparent text-[14px] font-medium caret-zinc-900 placeholder:text-zinc-500 focus:outline-none text-zinc-900"
+                    />
+                    <button
+                      type="button"
+                      aria-label={activeSearchTerm || searchQuery.trim() ? 'Очистить поиск' : 'Закрыть поиск'}
+                      onClick={() => {
+                        if (activeSearchTerm || searchQuery.trim()) {
+                          clearSearch();
+                          return;
+                        }
                         setShowSearchBar(false);
-                        mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                        setIsTransitioning(true);
-                        setTimeout(() => {
-                          setActiveOrigin(ORIGINS[0]);
-                          setActiveCategory(ALL_CATEGORIES[0]);
-                          setActiveSearchTerm(q);
-                          setIsTransitioning(false);
-                          requestAnimationFrame(() => {
-                            requestAnimationFrame(() => setIsSettling(true));
-                          });
-                          setTimeout(() => setIsSettling(false), 1080);
-                        }, 320);
-                      } else if (e.key === 'Escape') {
-                        setShowSearchBar(false);
-                        if (!activeSearchTerm) setSearchQuery("");
-                      }
+                        setSearchQuery("");
+                      }}
+                      className="absolute right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center active:scale-[0.88] liquid-glass"
+                      style={{ backgroundColor: hexToRgba(accentColor, 0.25), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
+                    ><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div
+                    className="flex items-center"
+                    style={{
+                      animation: searchChipClosing
+                        ? 'search-chip-out 280ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
+                        : 'search-chip-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both',
                     }}
-                    placeholder="Название или пивоварня..."
-                    className="flex-1 pl-11 pr-11 py-3 bg-transparent text-[14px] font-medium text-zinc-900 placeholder:text-zinc-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => {
-                      setShowSearchBar(false);
-                      if (!activeSearchTerm) setSearchQuery("");
-                    }}
-                    className="absolute right-2 w-7 h-7 rounded-full flex items-center justify-center active:scale-[0.88] liquid-glass"
-                    style={{ backgroundColor: hexToRgba(accentColor, 0.25), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
-                  ><X size={14} /></button>
-                </div>
+                  >
+                    <div
+                      className="flex items-center gap-2 max-w-full px-3 py-1.5 rounded-[14px] border text-[13px] font-semibold text-zinc-900/90"
+                      style={{
+                        background: `linear-gradient(180deg, ${hexToRgba(accentColor, 0.18)} 0%, rgba(255,255,255,0.22) 100%)`,
+                        borderColor: 'rgba(255,255,255,0.58)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.72), 0 6px 14px rgba(120,80,20,0.08)',
+                        backdropFilter: 'blur(10px) saturate(1.15)',
+                        WebkitBackdropFilter: 'blur(10px) saturate(1.15)'
+                      }}
+                    >
+                      <span className="truncate">{activeSearchTerm}</span>
+                      <button
+                        type="button"
+                        aria-label="Сбросить найденный запрос"
+                        onClick={() => {
+                          setSearchChipClosing(true);
+                          setTimeout(() => {
+                            setSearchChipClosing(false);
+                            clearSearch({ keepOpen: false });
+                          }, 170);
+                        }}
+                        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 active:scale-[0.88] liquid-glass"
+                        style={{ backgroundColor: hexToRgba(accentColor, 0.18) }}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <div className="flex gap-2 mt-4 relative z-[50]">
@@ -1411,7 +845,7 @@ export default function App() {
               </button>
             </div>
             <div className="grid grid-cols-4 gap-2 mt-3 relative z-[50]">
-              {[{ id: 'rating', label: 'Рейтинг' }, { id: 'price', label: 'Цена' }, { id: 'abv', label: 'Крепость' }, { id: 'og', label: 'Плотность' }].map(s => {
+              {sortOptions.map(s => {
                 const isActive = sortConfig.key === s.id && sortConfig.direction !== null;
                 return (
                   <button key={s.id}
@@ -1444,56 +878,9 @@ export default function App() {
           <HeaderWave className="absolute bottom-[-1px] left-0 z-[25]" fill={displayBgColor} />
         </header>
         <div className="px-4 pt-4 pb-[120px] relative z-[30]">
-          {activeSearchTerm && (
-            <div
-              className="mb-4 flex items-center justify-between p-3 rounded-[16px] border bg-white/30 border-white/50 text-zinc-900"
-              style={{
-                animation: searchChipClosing
-                  ? 'search-chip-out 280ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
-                  : 'search-chip-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
-              }}
-            >
-              <span className="text-[13px] font-bold truncate mr-3">Поиск: &quot;{activeSearchTerm}&quot;</span>
-              <button
-                onClick={() => {
-                  // Play the exit keyframe first, then clear the search through
-                  // the same fade/fly-in so the grid repopulates with a proper
-                  // animation instead of snapping back.
-                  setSearchChipClosing(true);
-                  setTimeout(() => {
-                    setSearchChipClosing(false);
-                    setIsTransitioning(true);
-                    setTimeout(() => {
-                      flushSync(() => {
-                        setActiveSearchTerm("");
-                        setSearchQuery("");
-                        setIsTransitioning(false);
-                        setIsSettling(true);
-                      });
-                      setTimeout(() => setIsSettling(false), 1080);
-                    }, 280);
-                  }, 260);
-                }}
-                className="rounded-full p-1.5 active:scale-[0.88] liquid-glass shrink-0"
-                style={{ backgroundColor: hexToRgba(accentColor, 0.15), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
-              ><X size={14} /></button>
-            </div>
-          )}
           {activeOrigin && (
             <div className={`grid grid-cols-2 auto-rows-fr gap-3 pb-6 cards-grid ${isTransitioning ? 'cards-grid-fading' : ''} ${isSettling ? 'cards-grid-settling' : ''}`}>
-              {currentItems.length > 0 ? currentItems.map((item, index) => (
-                <ProductCard
-                  key={item.id}
-                  item={item}
-                  qty={getQty(item.id)}
-                  index={index}
-                  accentColor={targetAccentColor}
-                  accentContrast={accentContrast}
-                  onSelect={setSelectedItem}
-                  onUpdateCart={updateCart}
-                  onBrewerySearch={handleBrewerySearch}
-                />
-              )) : (
+              {currentItems.length > 0 ? renderedGridItems : (
                 // Plain icon + label — no glass pill, no background. The content
                 // wrapper is z-30 while the BeerBubblesCanvas is fixed z-29, so the
                 // icon and text sit on top of the bubbles naturally while bubbles
@@ -1532,7 +919,7 @@ export default function App() {
       {cartTotalItems > 0 && (
         <div className="fixed bottom-0 left-0 w-full z-50 px-4 pt-6 pointer-events-none" style={{ paddingBottom: 'calc(var(--safe-bottom) + 20px)' }}>
           <div className="absolute inset-0 bg-gradient-to-t from-[#09090B] to-transparent pointer-events-none" style={{ animation: 'cart-gradient-in 1200ms cubic-bezier(0.23, 1, 0.32, 1) both' }} />
-          <button onClick={() => setShowCart(true)} className="relative w-full flex items-center justify-between p-4 rounded-[24px] shadow-2xl active:scale-[0.98] pointer-events-auto liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.15), animation: 'cart-rise 1400ms cubic-bezier(0.22, 1, 0.36, 1) both', transformOrigin: 'bottom center', transition: 'transform 180ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
+          <button type="button" aria-label="Открыть корзину" onClick={() => setShowCart(true)} className="relative w-full flex items-center justify-between p-4 rounded-[24px] shadow-2xl active:scale-[0.98] pointer-events-auto liquid-glass" style={{ backgroundColor: hexToRgba(accentColor, 0.15), animation: 'cart-rise 1400ms cubic-bezier(0.22, 1, 0.36, 1) both', transformOrigin: 'bottom center', transition: 'transform 180ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-[16px] flex items-center justify-center liquid-glass"><Beer size={20} strokeWidth={2.5} style={{ color: accentContrast }} /></div>
               <div className="flex flex-col items-start">
@@ -1547,7 +934,7 @@ export default function App() {
 
       {showStory && (
         <div className="fixed inset-0 z-[500] bg-zinc-950 flex flex-col text-white" style={{ animation: 'fade-in 200ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
-          <button onClick={() => setShowStory(false)} className="absolute top-8 right-4 z-20 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center active:scale-90 border border-white/20"><X size={20} /></button>
+          <button type="button" aria-label="Закрыть историю" onClick={() => setShowStory(false)} className="absolute top-8 right-4 z-20 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center active:scale-90 border border-white/20"><X size={20} /></button>
           <div className="flex-1 flex flex-col items-center justify-center p-6" style={{ background: `linear-gradient(to bottom, ${hexToRgba(accentColor, 0.2)}, #000000)` }}>
             <Flame size={80} className="mb-6 animate-pulse" style={{ color: accentColor, filter: `drop-shadow(0 0 30px ${hexToRgba(accentColor, 0.6)})` }} />
             <div className="font-logo text-4xl text-center mb-4 leading-[1.1] flex flex-col items-center"><span>ПРАЙМ</span><span>БИР</span></div>
@@ -1575,7 +962,7 @@ export default function App() {
               {/* Handle removed */}
               <div className="flex justify-between items-center mb-6 px-1 shrink-0 relative z-[5]">
                 <h2 className="font-display text-[26px] font-black tracking-[-0.02em]">Ваш заказ</h2>
-                <button onClick={() => closeSheet('cart', setShowCart)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><X size={20} /></button>
+                <button type="button" aria-label="Закрыть корзину" onClick={() => closeSheet('cart', setShowCart)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><X size={20} /></button>
               </div>
               <div className="flex-1 overflow-y-auto no-scrollbar pb-[180px] px-1 relative z-[5]">
                 <div className="flex flex-col gap-3">
@@ -1641,7 +1028,7 @@ export default function App() {
               <div className="relative flex-1 flex flex-col overflow-hidden foam-bg" style={{ animation: 'none' }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${hexToRgba(itemColor, 0.85)} 0%, ${hexToRgba(itemColor, 0.5)} 30%, ${hexToRgba(itemColor, 0.15)} 60%, transparent 85%)` }} />
                 <FoamBubblesCanvas />
-                <button onClick={closeDetail} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} style={{ color: itemColor }} /></button>
+                <button type="button" aria-label="Закрыть карточку товара" onClick={closeDetail} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} style={{ color: itemColor }} /></button>
                 <div className="overflow-y-auto no-scrollbar flex-1 pb-32 relative z-[5]">
                   {/* Swipe indicator removed */}
                   {/* Full-width image */}
@@ -1706,12 +1093,12 @@ export default function App() {
                           <div className="py-4 px-10 rounded-[20px] font-black text-[14px] liquid-glass" style={{ color: hexToRgba(itemContrast, 0.7), backgroundColor: hexToRgba(itemContrast, 0.08), border: `1px solid ${hexToRgba(itemContrast, 0.18)}`, cursor: 'default' }}>
                             {selectedItem.origin === 'archive' ? 'ЗАКОНЧИЛОСЬ' : 'СКОРО'}
                           </div>
-                        ) : getQty(selectedItem.id) === 0 ? (
+                        ) : selectedItemQty === 0 ? (
                           <button onClick={() => updateCart(null, selectedItem, 1)} className="py-4 px-10 rounded-[20px] font-black text-[14px] active:scale-[0.96] liquid-glass" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.15), transition: 'transform 180ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease', animation: 'plus-fade 520ms cubic-bezier(0.23, 1, 0.32, 1)' }}>В КОРЗИНУ</button>
                         ) : (
                           <div className="flex items-center gap-4 rounded-full p-1 liquid-glass" style={{ backgroundColor: hexToRgba(itemColor, 0.15), animation: 'qty-pop 720ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
                             <button onClick={() => updateCart(null, selectedItem, -1)} className="w-12 h-12 rounded-full flex items-center justify-center active:scale-[0.9]" style={{ backgroundColor: hexToRgba(itemColor, 0.2), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}><Minus size={18} style={{ color: itemContrast }} /></button>
-                            <span className="text-[18px] font-black w-6 text-center tabular-nums" style={{ color: itemContrast }}>{getQty(selectedItem.id)}</span>
+                            <span className="text-[18px] font-black w-6 text-center tabular-nums" style={{ color: itemContrast }}>{selectedItemQty}</span>
                             <button onClick={() => updateCart(null, selectedItem, 1)} className="w-12 h-12 rounded-full flex items-center justify-center active:scale-[0.9]" style={{ backgroundColor: hexToRgba(itemColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
                               <Plus size={18} style={{ color: itemContrast }} />
                             </button>
@@ -1741,7 +1128,7 @@ export default function App() {
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
               <FoamBubblesCanvas />
-              <button onClick={() => closeSheet('origin', setShowOriginSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
+              <button type="button" aria-label="Закрыть выбор коллекции" onClick={() => closeSheet('origin', setShowOriginSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Коллекция</h3>
               <div className="relative z-[5]">
                 {/* "Всё" — big solid full-width button */}
@@ -1773,7 +1160,7 @@ export default function App() {
                   {ORIGINS.slice(1).map(origin => {
                     const active = activeOrigin?.id === origin.id;
                     return (
-                      <button key={origin.id} onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin), origin.id === 'not_beer')}
+                      <button key={origin.id} onClick={() => handleFilterChange(setShowOriginSheet, () => setActiveOrigin(origin))}
                         className={`flex items-center gap-3 p-4 rounded-[20px] text-left h-full min-h-[72px] ${active ? 'shadow-sm' : 'liquid-glass'}`}
                         style={active ? { backgroundColor: hexToRgba(targetAccentColor, 0.35), border: `1px solid ${hexToRgba(targetAccentColor, 0.5)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
                         <div className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0" style={{
@@ -1813,7 +1200,7 @@ export default function App() {
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
               <FoamBubblesCanvas />
-              <button onClick={() => closeSheet('category', setShowCategorySheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
+              <button type="button" aria-label="Закрыть выбор стиля" onClick={() => closeSheet('category', setShowCategorySheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Стиль</h3>
               <div className="grid grid-cols-2 gap-2.5 relative z-[5] auto-rows-fr">
                 {/* Любой стиль — static color like other groups */}
@@ -1828,9 +1215,10 @@ export default function App() {
                 </button>
                 {/* Groups */}
                 {CATEGORY_GROUPS.map(group => {
-                  const groupActive = group.items.some(c => c.id === activeCategory.id);
+                  const groupCategoryId = `group:${group.group}`;
+                  const groupActive = activeCategory.id === groupCategoryId || group.items.some(c => c.id === activeCategory.id);
                   return (
-                    <button key={group.group} onClick={() => handleFilterChange(setShowCategorySheet, () => setActiveCategory(group.items[0]))}
+                    <button key={group.group} onClick={() => handleFilterChange(setShowCategorySheet, () => setActiveCategory(createGroupCategory(group)))}
                       className={`flex items-center gap-2.5 px-3 py-4 rounded-[20px] text-left h-full min-h-[76px] overflow-hidden ${groupActive ? 'shadow-sm' : 'liquid-glass'}`}
                       style={groupActive ? { backgroundColor: hexToRgba(group.color, 0.35), border: `1px solid ${hexToRgba(group.color, 0.5)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
                       <div className="w-5 h-5 rounded-full shrink-0 shadow-sm border border-black/10" style={{ backgroundColor: group.color }} />
@@ -1861,7 +1249,7 @@ export default function App() {
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
               <FoamBubblesCanvas />
-              <button onClick={() => closeSheet('location', setShowLocationSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
+              <button type="button" aria-label="Закрыть выбор адреса" onClick={() => closeSheet('location', setShowLocationSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               
               <div className="flex items-center gap-3 mb-6 relative z-[5]">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.25), borderColor: hexToRgba(targetAccentColor, 0.4), transition: 'background-color 1000ms ease, border-color 1000ms ease' }}>
@@ -1887,3 +1275,4 @@ export default function App() {
     </div>
   );
 }
+
