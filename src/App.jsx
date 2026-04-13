@@ -831,7 +831,7 @@ export default function App() {
         setIsTransitioning(false);
         setIsSettling(true);
       });
-      setTimeout(() => setIsSettling(false), 880);
+      setTimeout(() => setIsSettling(false), 1080);
     }, 280);
   }, []);
 
@@ -884,7 +884,7 @@ export default function App() {
         setIsSettling(true);
       });
       // Duration covers max stagger delay (280ms) + animation length (560ms).
-      setTimeout(() => setIsSettling(false), 880);
+      setTimeout(() => setIsSettling(false), 1080);
     }, 280);
   };
 
@@ -1425,7 +1425,7 @@ export default function App() {
                         setIsTransitioning(false);
                         setIsSettling(true);
                       });
-                      setTimeout(() => setIsSettling(false), 880);
+                      setTimeout(() => setIsSettling(false), 1080);
                     }, 280);
                   }, 260);
                 }}
