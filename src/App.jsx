@@ -1082,6 +1082,14 @@ export default function App() {
             transition-duration: 0.01ms !important;
           }
         }
+        [data-perf-tier="low"] .foam-bg {
+          animation: none !important;
+        }
+        [data-perf-tier="low"] .liquid-glass-subtle {
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          background: rgba(255,255,255,0.2);
+        }
         button { -webkit-tap-highlight-color: transparent; }
         @keyframes beer-rise { 0% { transform: translateY(105%); } 15% { transform: translateY(80%); } 30% { transform: translateY(55%); } 45% { transform: translateY(35%); } 60% { transform: translateY(18%); } 75% { transform: translateY(6%); } 90% { transform: translateY(1%); } 100% { transform: translateY(0); } }
         @keyframes surface-wobble { 0% { transform: translateX(0%) scaleY(3.5); } 25% { transform: translateX(-12.5%) scaleY(2.8); } 50% { transform: translateX(-25%) scaleY(2); } 75% { transform: translateX(-37.5%) scaleY(1.3); } 100% { transform: translateX(-50%) scaleY(1); } }
@@ -1115,6 +1123,13 @@ export default function App() {
           border-bottom: 1px solid rgba(255,255,255,0.1);
           box-shadow: 0 8px 24px rgba(0,0,0,0.08), inset 0 1px 1px rgba(255,255,255,0.3);
           transition: background-color 1000ms ease, border-color 1000ms ease, box-shadow 1000ms ease;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
+        }
+        [data-perf-tier="low"] .liquid-glass {
+          backdrop-filter: blur(2px);
+          -webkit-backdrop-filter: blur(2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         }
         .liquid-glass-subtle {
           background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%);
