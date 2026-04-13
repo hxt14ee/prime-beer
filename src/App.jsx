@@ -1180,6 +1180,11 @@ export default function App() {
         [data-perf-tier="low"] .cards-grid-fading > * {
           transition-duration: 150ms;
         }
+        [data-perf-tier="low"] .fixed .bg-black\/60 {
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          background: rgba(0,0,0,0.7);
+        }
         @keyframes card-fly-in {
           0%   { opacity: 0; transform: translateY(8px) scale(0.95); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -1616,7 +1621,6 @@ export default function App() {
       )}
 
       {selectedItem && (() => {
-        const detailRef = React.createRef();
         let startY = 0;
         const onTouchStart = (e) => { startY = e.touches[0].clientY; };
         const onTouchEnd = (e) => { if (e.changedTouches[0].clientY - startY > 80) closeDetail(); };
