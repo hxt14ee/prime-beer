@@ -247,7 +247,7 @@ const BeerBottleIcon = ({ bottleColor, labelColor, label, className }) => (
 const ItemImage = ({ item, className }) => {
   if (item.isNotBeer) return <Package size={48} className={`text-white/80 drop-shadow-lg ${className}`} />;
   // All beer uses the same bottle PNG (no background) — served from /public
-  return <img src="/bottle.png" alt={item.name} className={className} style={{ objectFit: 'contain' }} draggable={false} />;
+  return <img src="/bottle.png" alt={item.name} className={className} style={{ objectFit: 'contain' }} draggable={false} loading="lazy" decoding="async" />;
 };
 
 // Литраж: ∞ для крана, 0.33 для импорта/крепкого, 0.5 — стандарт, 0.7 — barleywine/BA/RIS
