@@ -268,7 +268,8 @@ const BeerBubblesCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const perfTier = document.documentElement.dataset.perfTier || 'mid';
+    const dpr = perfTier === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     const setSize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -346,7 +347,10 @@ const BeerBubblesCanvas = () => {
         popY: 0,
       };
     };
-    const bubbles = Array.from({ length: 450 }).map(() => {
+    const bubbleCount = perfTier === 'low' ? 120 : perfTier === 'mid' ? 280 : 450;
+    const frameSkip = perfTier === 'low' ? 2 : 1;
+    let frameCount = 0;
+    const bubbles = Array.from({ length: bubbleCount }).map(() => {
       const b = makeBubble('spread');
       b.baseSize = b.size;
       return b;
@@ -357,6 +361,11 @@ const BeerBubblesCanvas = () => {
       const vh = window.innerHeight;
       const scrollTop = getScrollTop();
       const now = performance.now();
+      frameCount++;
+      if (frameCount % frameSkip !== 0) {
+        animId = requestAnimationFrame(animate);
+        return;
+      }
       ctx.clearRect(0, 0, vw, vh);
       bubbles.forEach(b => {
         if (b.popping) {
