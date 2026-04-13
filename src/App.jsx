@@ -1251,7 +1251,7 @@ export default function App() {
         </div>
       )}
 
-      <main ref={mainRef} className="relative w-full h-[100dvh] z-20 overflow-y-auto overflow-x-hidden no-scrollbar scroll-smooth" style={{ overscrollBehavior: 'none' }}>
+      <main ref={mainRef} className={`relative w-full h-[100dvh] z-20 overflow-x-hidden no-scrollbar scroll-smooth ${(isTransitioning || isSettling) ? 'overflow-y-hidden' : 'overflow-y-auto'}`} style={{ overscrollBehavior: 'none' }}>
 
         {/* Pour animation — permanently mounted, now inside main so it shares the stacking context */}
         <div
@@ -1571,6 +1571,7 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)'
               }} />
+              <FoamBubblesCanvas />
               {/* Handle removed */}
               <div className="flex justify-between items-center mb-6 px-1 shrink-0 relative z-[5]">
                 <h2 className="font-display text-[26px] font-black tracking-[-0.02em]">Ваш заказ</h2>
@@ -1639,6 +1640,7 @@ export default function App() {
               {/* Card body = foam-bg + item color gradient + bubbles, like header */}
               <div className="relative flex-1 flex flex-col overflow-hidden foam-bg" style={{ animation: 'none' }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${hexToRgba(itemColor, 0.85)} 0%, ${hexToRgba(itemColor, 0.5)} 30%, ${hexToRgba(itemColor, 0.15)} 60%, transparent 85%)` }} />
+                <FoamBubblesCanvas />
                 <button onClick={closeDetail} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} style={{ color: itemColor }} /></button>
                 <div className="overflow-y-auto no-scrollbar flex-1 pb-32 relative z-[5]">
                   {/* Swipe indicator removed */}
@@ -1738,6 +1740,7 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
+              <FoamBubblesCanvas />
               <button onClick={() => closeSheet('origin', setShowOriginSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Коллекция</h3>
               <div className="relative z-[5]">
@@ -1809,6 +1812,7 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
+              <FoamBubblesCanvas />
               <button onClick={() => closeSheet('category', setShowCategorySheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Стиль</h3>
               <div className="grid grid-cols-2 gap-2.5 relative z-[5] auto-rows-fr">
@@ -1856,6 +1860,7 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
+              <FoamBubblesCanvas />
               <button onClick={() => closeSheet('location', setShowLocationSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               
               <div className="flex items-center gap-3 mb-6 relative z-[5]">
