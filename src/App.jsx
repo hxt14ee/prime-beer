@@ -466,7 +466,11 @@ const FoamBubblesCanvas = () => {
       b.popping = false;
       b.popFrame = 0;
     };
-    const bubbles = Array.from({ length: 50 }).map(() => {
+    const perfTier = document.documentElement.dataset.perfTier || 'mid';
+    const bubbleCount = perfTier === 'low' ? 15 : perfTier === 'mid' ? 30 : 50;
+    const frameSkip = perfTier === 'low' ? 2 : 1;
+    let frameCount = 0;
+    const bubbles = Array.from({ length: bubbleCount }).map(() => {
       const b = {};
       respawn(b);
       b.life = Math.random() * b.maxLife;
@@ -475,6 +479,11 @@ const FoamBubblesCanvas = () => {
     let animationId;
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      frameCount++;
+      if (frameCount % frameSkip !== 0) {
+        animationId = requestAnimationFrame(animate);
+        return;
+      }
       bubbles.forEach(b => {
         b.life++;
         if (b.popping) {
