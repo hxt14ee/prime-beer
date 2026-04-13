@@ -31,6 +31,44 @@ if (tg) {
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
 
+// Detect device performance tier for animation throttling
+const detectPerfTier = () => {
+  const ua = navigator.userAgent;
+  const mem = navigator.deviceMemory || 4;
+  const cores = navigator.hardwareConcurrency || 4;
+  const dpr = window.devicePixelRatio || 1;
+
+  if (mem <= 2 || cores <= 2) return 'low';
+  if (mem >= 6 && cores >= 6) return 'high';
+  return 'mid';
+};
+
+const perfTier = detectPerfTier();
+document.documentElement.dataset.perfTier = perfTier;
+document.documentElement.style.setProperty('--perf-tier', perfTier);
+
+// Detect screen refresh rate for animation frame budget
+let screenHz = 60;
+const detectHz = () => {
+  let last = 0;
+  let samples = [];
+  let count = 0;
+  const measure = (ts) => {
+    if (last) samples.push(ts - last);
+    last = ts;
+    count++;
+    if (count < 20) {
+      requestAnimationFrame(measure);
+    } else {
+      const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+      screenHz = Math.round(1000 / avg);
+      document.documentElement.style.setProperty('--screen-hz', String(screenHz));
+    }
+  };
+  requestAnimationFrame(measure);
+};
+detectHz();
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
