@@ -27,9 +27,23 @@ if (tg) {
   } catch (e) { /* noop */ }
 }
 
+// Fix iOS TG viewport height — Telegram's webview sometimes reports
+// wrong innerHeight. Force recalc on visibility change and resize.
+const fixVh = () => {
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
+};
+fixVh();
+window.addEventListener('resize', fixVh);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) fixVh();
+});
+
 // Prevent double-tap zoom / pinch on iOS Safari inside Telegram
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchstart', () => {}, { passive: true });
+document.addEventListener('touchmove', () => {}, { passive: true });
 
 // Detect device performance tier for animation throttling
 const detectPerfTier = () => {
