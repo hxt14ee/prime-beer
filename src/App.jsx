@@ -106,7 +106,7 @@ const CATEGORY_GROUPS = [
     ]
   },
 ];
-const ALL_CATEGORIES = [{ id: 'all_styles', name: 'Любой стиль', color: '#FDE047' }, ...CATEGORY_GROUPS.flatMap(g => g.items)];
+const ALL_CATEGORIES = [{ id: 'all_styles', name: 'Любой стиль', color: '#D9B500' }, ...CATEGORY_GROUPS.flatMap(g => g.items)];
 const CATEGORIES = ALL_CATEGORIES;
 
 // =======================
@@ -253,7 +253,7 @@ const ItemImage = ({ item, className }) => {
 // Литраж: ∞ для крана, 0.33 для импорта/крепкого, 0.5 — стандарт, 0.7 — barleywine/BA/RIS
 const getVolumeLabel = (item) => {
   if (item.isNotBeer) return null;
-  if (item.onTap) return '∞ Л';
+  if (item.onTap) return '0.5 Л';
   if (item.type === 'barleywine' || item.type === 'ris' || item.type === 'barrel_aged') return '0.7 Л';
   if (item.origin === 'import' || item.abv >= 9) return '0.33 Л';
   return '0.5 Л';
@@ -547,7 +547,8 @@ const HeaderWave = React.memo(function HeaderWave({ className = '', style, fill 
 // =======================
 // 5. PRODUCT CARD — memoized to prevent re-rendering all 70 cards on every cart update
 // =======================
-const ProductCard = React.memo(function ProductCard({ item, qty, index, accentColor, accentContrast, onSelect, onUpdateCart, onBrewerySearch }) {
+const ProductCard = React.memo(function ProductCard({ item, qty, index, accentColor, accentContrast: _accentContrast, onSelect, onUpdateCart, onBrewerySearch }) {
+  const accentContrast = '#FFFFFF';
   const isArchive = item.origin === 'archive';
   const isSoon = item.origin === 'soon';
   const isOverlay = isArchive || isSoon;
@@ -568,7 +569,7 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
             type="button"
             onClick={(e) => { e.stopPropagation(); onBrewerySearch?.(item.brewery); }}
             className="font-display px-2.5 py-1 rounded-[10px] text-[13px] font-bold leading-none truncate min-w-0 block active:scale-[0.94] transition-transform"
-            style={{ color: hexToRgba(accentContrast, 0.85), border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}
+            style={{ color: '#18181B', border: `1px solid rgba(255,255,255,0.6)`, backgroundColor: 'rgba(255,255,255,0.55)' }}
           >{item.brewery}</button>
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-[10px] shrink-0" style={{ border: `1px solid ${hexToRgba(accentContrast, 0.18)}`, backgroundColor: hexToRgba(accentContrast, 0.04) }}>
             <Star size={11} style={{ color: accentContrast, fill: accentContrast, opacity: 0.85 }} />
@@ -596,10 +597,10 @@ const ProductCard = React.memo(function ProductCard({ item, qty, index, accentCo
         <h3 className="font-display text-[18px] font-black leading-[1.1] line-clamp-2 mb-2 tracking-[-0.01em]" style={{ color: accentContrast }}>{item.name}</h3>
         {!item.isNotBeer && (
           <div className="flex flex-wrap gap-1 mb-2.5">
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{getVolumeLabel(item)}</span>
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.abv}% ABV</span>
-            <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.og}% OG</span>
-            {item.ibu > 0 && <span className="font-display px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: hexToRgba(accentContrast, 0.08), color: hexToRgba(accentContrast, 0.65), border: `1px solid ${hexToRgba(accentContrast, 0.1)}` }}>{item.ibu} IBU</span>}
+            <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{getVolumeLabel(item)}</span>
+            <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{item.abv}% ABV</span>
+            <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{item.og}% OG</span>
+            {item.ibu > 0 && <span className="font-display px-2 py-0.5 rounded-full text-[11px] font-black" style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.9)', border: `1px solid rgba(255,255,255,0.25)` }}>{item.ibu} IBU</span>}
           </div>
         )}
         <div className="flex items-center justify-between mt-auto pt-2">
@@ -767,7 +768,7 @@ export default function App() {
 
   const targetAccentColor = useMemo(() => {
     const isNotBeer = activeOrigin?.id === 'not_beer';
-    return isNotBeer ? '#8B939C' : (activeCategory.id === 'all_styles' ? '#FDE047' : activeCategory.color);
+    return isNotBeer ? '#8B939C' : (activeCategory.id === 'all_styles' ? '#D9B500' : activeCategory.color);
   }, [activeCategory, activeOrigin]);
   const isStout = activeCategory.id === 'stout';
 
@@ -1154,7 +1155,7 @@ export default function App() {
               : undefined,
           }}
         >
-          {/* Непрозрачный пенный фон */}
+          {/* Пенный фон с пузырями */}
           <div className="absolute inset-0 bg-[#EDD9AB]" />
           <div className="absolute inset-0 foam-bg" style={{ animation: 'none' }} />
           <FoamBubblesCanvas />
@@ -1525,7 +1526,6 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.15) 60%, transparent 85%)'
               }} />
-              <FoamBubblesCanvas />
               {/* Handle removed */}
               <div className="flex justify-between items-center mb-6 px-1 shrink-0 relative z-[5]">
                 <h2 className="font-display text-[26px] font-black tracking-[-0.02em]">Ваш заказ</h2>
@@ -1581,8 +1581,8 @@ export default function App() {
         const onTouchStart = (e) => { startY = e.touches[0].clientY; };
         const onTouchEnd = (e) => { if (e.changedTouches[0].clientY - startY > 80) closeDetail(); };
         const itemCat = ALL_CATEGORIES.find(c => c.id === selectedItem.type);
-        const itemColor = itemCat ? itemCat.color : '#FDE047';
-        const itemContrast = getContrastYIQ(itemColor);
+        const itemColor = itemCat ? itemCat.color : '#D9B500';
+        const itemContrast = '#FFFFFF';
         return (
           <div className="fixed inset-0 z-[400] flex flex-col justify-end text-zinc-900">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeDetail} style={{ animation: closingDetail ? 'fade-out 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards' : 'fade-in 0.3s ease-out' }} />
@@ -1595,7 +1595,6 @@ export default function App() {
               {/* Card body = foam-bg + item color gradient + bubbles, like header */}
               <div className="relative flex-1 flex flex-col overflow-hidden foam-bg" style={{ animation: 'none' }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${hexToRgba(itemColor, 0.85)} 0%, ${hexToRgba(itemColor, 0.5)} 30%, ${hexToRgba(itemColor, 0.15)} 60%, transparent 85%)` }} />
-                <FoamBubblesCanvas />
                 <button onClick={closeDetail} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} style={{ color: itemColor }} /></button>
                 <div className="overflow-y-auto no-scrollbar flex-1 pb-32 relative z-[5]">
                   {/* Swipe indicator removed */}
@@ -1618,7 +1617,7 @@ export default function App() {
                             setTimeout(() => handleBrewerySearch(brewery), 240);
                           }}
                           className="font-display px-3 py-1.5 rounded-[10px] text-[15px] font-bold active:scale-[0.96] transition-transform"
-                          style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}
+                          style={{ color: '#18181B', backgroundColor: 'rgba(255,255,255,0.55)', border: `1px solid rgba(255,255,255,0.6)` }}
                         >{selectedItem.brewery}</button>
                         <div className="flex items-center gap-1 px-3 py-1.5 rounded-[10px]" style={{ backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>
                           <Star size={13} style={{ color: itemContrast, fill: itemContrast }} /><span className="font-display text-[15px] font-bold" style={{ color: itemContrast }}>{selectedItem.rating}</span>
@@ -1628,10 +1627,10 @@ export default function App() {
                     <h2 className="font-display text-[32px] font-black leading-[1.05] tracking-[-0.02em] mb-3" style={{ color: itemContrast }}>{selectedItem.name}</h2>
                     {!selectedItem.isNotBeer && (
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{getVolumeLabel(selectedItem)}</span>
-                        <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.abv}% ABV</span>
-                        <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.og}% OG</span>
-                        {selectedItem.ibu > 0 && <span className="font-display px-2.5 py-1 rounded-[8px] text-[12px] font-bold" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.2), border: `1px solid ${hexToRgba(itemColor, 0.35)}` }}>{selectedItem.ibu} IBU</span>}
+                        <span className="font-display px-3 py-1.5 rounded-[10px] text-[14px] font-black" style={{ color: itemContrast, backgroundColor: 'rgba(255,255,255,0.2)', border: `1px solid rgba(255,255,255,0.35)` }}>{getVolumeLabel(selectedItem)}</span>
+                        <span className="font-display px-3 py-1.5 rounded-[10px] text-[14px] font-black" style={{ color: itemContrast, backgroundColor: 'rgba(255,255,255,0.2)', border: `1px solid rgba(255,255,255,0.35)` }}>{selectedItem.abv}% ABV</span>
+                        <span className="font-display px-3 py-1.5 rounded-[10px] text-[14px] font-black" style={{ color: itemContrast, backgroundColor: 'rgba(255,255,255,0.2)', border: `1px solid rgba(255,255,255,0.35)` }}>{selectedItem.og}% OG</span>
+                        {selectedItem.ibu > 0 && <span className="font-display px-3 py-1.5 rounded-[10px] text-[14px] font-black" style={{ color: itemContrast, backgroundColor: 'rgba(255,255,255,0.2)', border: `1px solid rgba(255,255,255,0.35)` }}>{selectedItem.ibu} IBU</span>}
                       </div>
                     )}
                   </div>
@@ -1695,7 +1694,6 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
-              <FoamBubblesCanvas />
               <button onClick={() => closeSheet('origin', setShowOriginSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Коллекция</h3>
               <div className="relative z-[5]">
@@ -1767,7 +1765,6 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
-              <FoamBubblesCanvas />
               <button onClick={() => closeSheet('category', setShowCategorySheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Стиль</h3>
               <div className="grid grid-cols-2 gap-2.5 relative z-[5] auto-rows-fr">
@@ -1815,7 +1812,6 @@ export default function App() {
                 WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
-              <FoamBubblesCanvas />
               <button onClick={() => closeSheet('location', setShowLocationSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
               
               <div className="flex items-center gap-3 mb-6 relative z-[5]">
