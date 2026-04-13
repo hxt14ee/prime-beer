@@ -951,8 +951,7 @@ export default function App() {
     <div className="relative w-full h-[100dvh] font-sans text-zinc-900 select-none overflow-x-hidden" style={{ backgroundColor: displayBgColor, maxWidth: '100vw', transition: 'background-color 500ms cubic-bezier(0.4, 0, 0.2, 1) 900ms' }}>
       <style dangerouslySetInnerHTML={{
         __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;0,800;0,900;1,400&family=Commissioner:wght@400;500;600;700&family=Russo+One&display=swap');
-        @font-face { font-family: 'TD Ciryulnik'; src: url('/fonts/td-ciryulnik.woff2') format('woff'); font-display: swap; }
+        @font-face { font-family: 'TD Ciryulnik'; src: url('/fonts/td-ciryulnik.woff2') format('woff2'); font-display: swap; }
         :root {
           /* Type scale — 1.25 modular ratio, rem-based */
           --text-micro: 0.6875rem;    /* 11px — captions, legal */
