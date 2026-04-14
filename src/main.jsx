@@ -31,8 +31,38 @@ if (tg) {
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const waitForEssentialFonts = async () => {
+  if (!document.fonts?.load) return;
+
+  const fontLoads = [
+    document.fonts.load("400 1em Commissioner"),
+    document.fonts.load("500 1em Commissioner"),
+    document.fonts.load("600 1em Commissioner"),
+    document.fonts.load("700 1em Commissioner"),
+    document.fonts.load("400 1em Alegreya"),
+    document.fonts.load("700 1em Alegreya"),
+    document.fonts.load("800 1em Alegreya"),
+    document.fonts.load("900 1em Alegreya"),
+    document.fonts.load("400 1em 'TD Ciryulnik'"),
+  ];
+
+  try {
+    await Promise.race([
+      Promise.allSettled([
+        ...fontLoads,
+        document.fonts.ready,
+      ]),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ]);
+  } catch {
+    // noop
+  }
+};
+
+waitForEssentialFonts().finally(() => {
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+});

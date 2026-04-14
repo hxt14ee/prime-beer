@@ -135,7 +135,7 @@ export const BeerBubblesCanvas = React.memo(function BeerBubblesCanvas({
         // earlier and troughs let them rise further. This makes the pop line
         // dance with the wave visually.
         const surface = surfaceAtX(b.x, now);
-        if ((b.worldY - b.size) < surface) {
+        if (b.worldY < surface) {
           b.popping = true;
           b.popFrame = 0;
           b.popY = surface;
@@ -166,7 +166,7 @@ export const BeerBubblesCanvas = React.memo(function BeerBubblesCanvas({
       cancelAnimationFrame(animId);
     };
   }, [headerRef, scrollContainerRef]);
-  return <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 18 }} />;
+  return <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 29 }} />;
 });
 
 // =======================

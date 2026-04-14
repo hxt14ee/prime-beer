@@ -11,7 +11,6 @@ import { getContrastYIQ, hexToRgba } from './utils/ui.js';
 const INITIAL_VISIBLE_ITEMS = 24;
 const VISIBLE_BATCH_SIZE = 20;
 const LOAD_MORE_THRESHOLD = 720;
-
 // =======================
 // 6. ОСНОВНОЙ КОМПОНЕНТ
 // =======================
@@ -45,11 +44,22 @@ export default function App() {
   const headerRef = useRef(null);
   const mainRef = useRef(null);
   const [visibleItemCount, setVisibleItemCount] = useState(INITIAL_VISIBLE_ITEMS);
+  const inlineCloseButtonStyle = {
+    marginRight: 'var(--safe-right, 0px)',
+    transform: 'translateZ(0)',
+  };
+  const sheetHeaderRowStyle = {
+    paddingRight: 'var(--safe-right, 0px)',
+  };
+  const storyHeaderRowStyle = {
+    paddingTop: 'calc(var(--safe-top, 0px) + 16px)',
+    paddingRight: 'calc(var(--safe-right, 0px) + 16px)',
+  };
   const sortOptions = useMemo(() => ([
     { id: 'rating', label: 'Рейтинг' },
     { id: 'price', label: 'Цена' },
+    { id: 'new', label: 'Новинка' },
     { id: 'abv', label: 'Крепость' },
-    { id: 'og', label: 'Плотность' },
   ]), []);
 
   // Show the "scroll to top" FAB once the user has scrolled roughly 1.25 viewport
@@ -82,6 +92,21 @@ export default function App() {
   // the gate slides away, the cards should already be in their natural position,
   // not re-animate. The fly-in is reserved for actual filter changes.
   const isStyleFilterDisabled = activeOrigin?.id === 'not_beer';
+  const formatStyleGroupName = useCallback((label) => {
+    if (!label) return '';
+    if (label !== label.toLocaleUpperCase('ru-RU')) return label;
+
+    const minorWords = new Set(['и', 'в', 'во', 'на', 'по', 'с', 'со', 'без', 'для']);
+    return label
+      .toLocaleLowerCase('ru-RU')
+      .split(' ')
+      .map((word, index) => {
+        if (!word) return word;
+        if (index > 0 && minorWords.has(word)) return word;
+        return `${word.charAt(0).toLocaleUpperCase('ru-RU')}${word.slice(1)}`;
+      })
+      .join(' ');
+  }, []);
 
   const targetAccentColor = useMemo(() => {
     const isNotBeer = activeOrigin?.id === 'not_beer';
@@ -119,7 +144,17 @@ export default function App() {
       result = result.filter(item => item.name.toLowerCase().includes(term) || item.brewery.toLowerCase().includes(term));
     }
     if (sortConfig.key && sortConfig.direction) {
-      result = [...result].sort((a, b) => sortConfig.direction === 'desc' ? b[sortConfig.key] - a[sortConfig.key] : a[sortConfig.key] - b[sortConfig.key]);
+      const getSortValue = (item, key) => {
+        if (key === 'new') return item.id ?? 0;
+        const value = item?.[key];
+        return typeof value === 'number' ? value : 0;
+      };
+
+      result = [...result].sort((a, b) => {
+        const aValue = getSortValue(a, sortConfig.key);
+        const bValue = getSortValue(b, sortConfig.key);
+        return sortConfig.direction === 'desc' ? bValue - aValue : aValue - bValue;
+      });
     }
     return result;
   }, [activeOrigin, activeCategory, sortConfig, activeSearchTerm]);
@@ -182,7 +217,7 @@ export default function App() {
     }, 280);
   }, [hasSearchMatch, searchQuery]);
 
-  const clearSearch = useCallback(({ keepOpen = true } = {}) => {
+  const clearSearch = useCallback(({ keepOpen = true, delay = 220 } = {}) => {
     setIsTransitioning(true);
     setTimeout(() => {
       flushSync(() => {
@@ -194,7 +229,7 @@ export default function App() {
       });
       if (keepOpen) requestAnimationFrame(() => searchInputRef.current?.focus());
       setTimeout(() => setIsSettling(false), 1080);
-    }, 220);
+    }, delay);
   }, []);
 
   // Search for all items from a specific brewery. Resets origin/category to "all"
@@ -311,6 +346,13 @@ export default function App() {
   const [holdBgColor, setHoldBgColor] = useState(targetAccentColor);
   const [pourTransform, setPourTransform] = useState('translateY(105%)');
   const [isPouring, setIsPouring] = useState(false);
+  const lockedPourTargetYRef = useRef(0);
+  const measurePourTargetY = useCallback(() => {
+    if (!headerRef.current) return 0;
+    const rect = headerRef.current.getBoundingClientRect();
+    // +1 keeps a 1px overlap with the header wave and avoids seam flicker.
+    return Math.max(0, rect.bottom + 1);
+  }, []);
 
   // Synchronized color aliases: accentColor holds during pour (for bg/gradients),
   // but we will pass targetAccentColor directly to the cards so they appear with the right theme.
@@ -326,21 +368,13 @@ export default function App() {
       setIsPouring(false);
       setWaveAnimating(true);
 
-      let targetY = 0;
-      if (headerRef.current) {
-        const rect = headerRef.current.getBoundingClientRect();
-        // +1 offset makes the pour wave bottom land exactly at (header_bottom + 1),
-        // which is where the header wave lives (bottom-[-1px]). Result: the pour wave
-        // and the header wave cover the same pixel range, eliminating the sliver bug
-        // where a cream pour wave left a strip of the new-bg color visible above/below it.
-        targetY = Math.max(0, rect.bottom + 1);
-      }
-
       // Next frame: kick off the pour transform AND start the header color transition
       // in the SAME frame so both animations run over the same 1.4s window, ending together.
       let frame1, frame2;
       frame1 = requestAnimationFrame(() => {
         frame2 = requestAnimationFrame(() => {
+          const targetY = measurePourTargetY();
+          lockedPourTargetYRef.current = targetY;
           setIsPouring(true);
           setPourTransform(`translateY(${targetY}px)`);
           setHoldBgColor(targetAccentColor); // triggers delayed 500ms bg transitions
@@ -351,6 +385,7 @@ export default function App() {
         setWaveAnimating(false);
         setPourTransform('translateY(105%)');
         setIsPouring(false);
+        lockedPourTargetYRef.current = 0;
       }, 2500);
 
       prevAccentRef.current = targetAccentColor;
@@ -360,25 +395,51 @@ export default function App() {
         cancelAnimationFrame(frame2);
       };
     }
-  }, [targetAccentColor]);
+  }, [targetAccentColor, measurePourTargetY]);
+
+  // Keep the pour boundary attached to the live header bottom while it is visible.
+  // This prevents the accent fill from "leaking" into controls if header height
+  // changes (for example, when the search UI opens/closes during a style switch).
+  useEffect(() => {
+    if (!waveAnimating || !isPouring) return;
+    const header = headerRef.current;
+    if (!header) return;
+
+    let frameId = null;
+    const syncPourToHeader = () => {
+      const measuredY = measurePourTargetY();
+      // Never allow the pour boundary to move up during keyboard/viewport
+      // relayouts while search opens; it may only stay or go down.
+      const targetY = Math.max(lockedPourTargetYRef.current, measuredY);
+      lockedPourTargetYRef.current = targetY;
+      const nextTransform = `translateY(${targetY}px)`;
+      setPourTransform((prev) => (prev === nextTransform ? prev : nextTransform));
+    };
+    const scheduleSync = () => {
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        syncPourToHeader();
+      });
+    };
+
+    const ro = new ResizeObserver(scheduleSync);
+    ro.observe(header);
+    window.addEventListener('resize', scheduleSync);
+    scheduleSync();
+
+    return () => {
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      ro.disconnect();
+      window.removeEventListener('resize', scheduleSync);
+    };
+  }, [waveAnimating, isPouring, measurePourTargetY]);
 
   const displayBgColor = holdBgColor;
-
   return (
     <div className="relative w-full h-[100dvh] font-sans text-zinc-900 select-none overflow-x-hidden" style={{ backgroundColor: displayBgColor, maxWidth: '100vw', transition: 'background-color 500ms cubic-bezier(0.4, 0, 0.2, 1) 900ms' }}>
       <style dangerouslySetInnerHTML={{
         __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;0,800;0,900;1,400&family=Commissioner:wght@400;500;600;700&family=Russo+One&display=swap');
-        @font-face {
-          font-family: 'TD Ciryulnik';
-          src:
-            local('TD Ciryulnik'),
-            local('TD CIRYULNIK'),
-            url('/fonts/td-ciryulnik.otf') format('opentype');
-          font-style: normal;
-          font-weight: 400;
-          font-display: swap;
-        }
         :root {
           /* Type scale — 1.25 modular ratio, rem-based */
           --text-micro: 0.6875rem;    /* 11px — captions, legal */
@@ -391,9 +452,21 @@ export default function App() {
           --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
           --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
           --ease-in-strong: cubic-bezier(0.32, 0, 0.67, 0);
+          /* Motion durations */
+          --motion-press: 160ms;
+          --motion-content-in: 220ms;
+          --motion-content-out: 100ms;
+          --motion-content-shift: 140ms;
+          --motion-pill: 320ms;
+          --motion-fade: 280ms;
+          --motion-image: 500ms;
+          --motion-glass: 760ms;
+          --motion-theme: 1000ms;
           /* Safe area (iOS / Telegram) */
           --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-top, 0px));
           --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom, 0px));
+          --safe-left: max(env(safe-area-inset-left, 0px), var(--tg-safe-left, 0px));
+          --safe-right: max(env(safe-area-inset-right, 0px), var(--tg-safe-right, 0px));
         }
         /* Telegram mini-app tweaks */
         * { -webkit-touch-callout: none; }
@@ -423,14 +496,6 @@ export default function App() {
           font-feature-settings: "kern", "calt", "onum", "liga" 0, "dlig" 0;
           font-variation-settings: normal;
         }
-        .font-logo {
-          font-family: 'TD Ciryulnik', 'Russo One', sans-serif !important;
-          font-weight: 400;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          font-feature-settings: normal;
-          font-variation-settings: normal;
-        }
         .uppercase { letter-spacing: 0.06em; }
         @keyframes float-up { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes cart-rise {
@@ -457,13 +522,13 @@ export default function App() {
         }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes search-chip-in {
-          0%   { opacity: 0; transform: translateY(-8px) scale(0.96); filter: blur(4px); }
-          60%  { opacity: 1; transform: translateY(1px) scale(1.01); filter: blur(0); }
+          0%   { opacity: 0; transform: translateY(-3px) scale(0.988); filter: blur(1.5px); }
+          70%  { opacity: 1; transform: translateY(0) scale(1.003); filter: blur(0); }
           100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
         @keyframes search-chip-out {
-          0%   { opacity: 1; transform: translateY(0) scale(1); }
-          100% { opacity: 0; transform: translateY(-3px) scale(0.97); }
+          0%   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+          100% { opacity: 0; transform: translateY(-1px) scale(0.99); filter: blur(1.2px); }
         }
         @keyframes search-bar-in {
           0%   { opacity: 0; transform: translateY(-10px) scale(0.985); filter: blur(8px); }
@@ -488,10 +553,28 @@ export default function App() {
         @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
         @keyframes foam-drift { 0% { transform: translateX(0) translateY(0); } 50% { transform: translateX(-3px) translateY(1px); } 100% { transform: translateX(0) translateY(0); } }
         @media (prefers-reduced-motion: reduce) {
+          :root {
+            --motion-press: 1ms;
+            --motion-content-in: 1ms;
+            --motion-content-out: 1ms;
+            --motion-content-shift: 1ms;
+            --motion-pill: 1ms;
+            --motion-fade: 1ms;
+            --motion-image: 1ms;
+            --motion-glass: 1ms;
+            --motion-theme: 1ms;
+          }
           *, *::before, *::after {
             animation-duration: 0.01ms !important;
             transition-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
           }
+          .cards-grid-settling > * { animation: none !important; }
+          .cards-grid-fading > * { transform: none !important; }
+          .product-card-shell.group:hover .product-card-image { transform: none !important; }
+          .product-card-shell:active,
+          .product-card-shell button:active { transform: none !important; }
         }
         button { -webkit-tap-highlight-color: transparent; }
         @keyframes beer-rise { 0% { transform: translateY(105%); } 15% { transform: translateY(80%); } 30% { transform: translateY(55%); } 45% { transform: translateY(35%); } 60% { transform: translateY(18%); } 75% { transform: translateY(6%); } 90% { transform: translateY(1%); } 100% { transform: translateY(0); } }
@@ -517,26 +600,80 @@ export default function App() {
           animation: foam-drift 4s ease-in-out infinite;
         }
         .liquid-glass {
-          background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 100%);
+          background:
+            radial-gradient(140% 120% at 14% 10%, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.15) 20%, transparent 54%),
+            linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.03) 100%);
           backdrop-filter: blur(6px);
           -webkit-backdrop-filter: blur(6px);
           isolation: isolate;
           backface-visibility: hidden;
+          position: relative;
+          overflow: hidden;
+          contain: paint;
+          clip-path: inset(0 round inherit);
+          transform: translateZ(0);
+          background-clip: padding-box;
+          outline: 1px solid transparent;
           border-top: 1px solid rgba(255,255,255,0.4);
           border-left: 1px solid rgba(255,255,255,0.4);
           border-right: 1px solid rgba(255,255,255,0.1);
           border-bottom: 1px solid rgba(255,255,255,0.1);
           box-shadow: 0 8px 24px rgba(0,0,0,0.08), inset 0 1px 1px rgba(255,255,255,0.3);
-          transition: background-color 1000ms ease, border-color 1000ms ease, box-shadow 1000ms ease;
+          transition:
+            transform var(--motion-press) var(--ease-out),
+            background-color var(--motion-glass) var(--ease-out),
+            border-color var(--motion-glass) var(--ease-out),
+            box-shadow var(--motion-glass) var(--ease-out),
+            opacity var(--motion-fade) var(--ease-out);
         }
         .liquid-glass-subtle {
-          background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%);
+          background:
+            radial-gradient(140% 120% at 14% 12%, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.1) 22%, transparent 58%),
+            linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.05) 100%);
           backdrop-filter: blur(3px);
           -webkit-backdrop-filter: blur(3px);
           isolation: isolate;
           backface-visibility: hidden;
-          border: 1px solid rgba(255,255,255,0.5);
-          box-shadow: 0 2px 6px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.45);
+          position: relative;
+          overflow: hidden;
+          contain: paint;
+          clip-path: inset(0 round inherit);
+          transform: translateZ(0);
+          background-clip: padding-box;
+          outline: 1px solid transparent;
+          border: 1px solid rgba(255,255,255,0.42);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.38);
+          transition:
+            transform var(--motion-press) var(--ease-out),
+            background-color var(--motion-glass) var(--ease-out),
+            border-color var(--motion-glass) var(--ease-out),
+            box-shadow var(--motion-glass) var(--ease-out),
+            opacity var(--motion-fade) var(--ease-out);
+        }
+        .product-card-shell {
+          transform: translateZ(0);
+          transform-origin: center bottom;
+          backface-visibility: hidden;
+          isolation: isolate;
+        }
+        .product-card-image {
+          transform: translateZ(0);
+          backface-visibility: hidden;
+          will-change: transform;
+          transition: transform var(--motion-image) var(--ease-out);
+        }
+        .product-card-overlay-badge,
+        .product-card-pill,
+        .product-card-plus-content,
+        .product-card-counter-content,
+        .product-card-counter-button,
+        .product-card-brewery-button {
+          transform: translateZ(0);
+          backface-visibility: hidden;
+        }
+        .product-card-plus-content,
+        .product-card-counter-content {
+          will-change: transform, opacity;
         }
         /* Card fade — opacity/transform applied per-child (NOT parent), because
            a parent opacity would disable backdrop-filter on every card. We drop
@@ -548,20 +685,23 @@ export default function App() {
         .cards-grid > * {
           opacity: 1;
           transform: translateY(0) scale(1);
+          transform-origin: center 70%;
+          backface-visibility: hidden;
+          will-change: transform, opacity;
         }
         .cards-grid-fading > * {
           opacity: 0;
-          transform: translateY(8px) scale(0.95);
+          transform: translateY(6px) scale(0.972);
           transition:
-            opacity 280ms cubic-bezier(0.32, 0, 0.67, 0),
-            transform 280ms cubic-bezier(0.32, 0, 0.67, 0);
+            opacity var(--motion-fade) var(--ease-in-strong),
+            transform var(--motion-fade) var(--ease-in-strong);
         }
         /* After a style change, cards play a one-shot entry keyframe — staggered
            top→bottom, start below, land smoothly at rest WITHOUT overshoot. A
            cubic-bezier(0.22, 1, 0.36, 1) (ease-out-quint) gives a strong
            decelerate feel without any bounce. */
         .cards-grid-settling > * {
-          animation: card-fly-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          animation: card-fly-in 520ms var(--ease-out) both;
         }
         .cards-grid-settling > *:nth-child(1)  { animation-delay: 0ms; }
         .cards-grid-settling > *:nth-child(2)  { animation-delay: 35ms; }
@@ -573,7 +713,7 @@ export default function App() {
         .cards-grid-settling > *:nth-child(8)  { animation-delay: 245ms; }
         .cards-grid-settling > *:nth-child(n+9) { animation-delay: 280ms; }
         @keyframes card-fly-in {
-          0%   { opacity: 0; transform: translateY(8px) scale(0.95); }
+          0%   { opacity: 0; transform: translateY(6px) scale(0.972); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}} />
@@ -641,7 +781,11 @@ export default function App() {
         </div>
       )}
 
-      <main ref={mainRef} className={`relative w-full h-[100dvh] z-20 overflow-x-hidden no-scrollbar scroll-smooth ${(isTransitioning || isSettling) ? 'overflow-y-hidden' : 'overflow-y-auto'}`} style={{ overscrollBehavior: 'none' }}>
+      <main
+        ref={mainRef}
+        className={`relative w-full h-[100dvh] z-20 overflow-x-hidden no-scrollbar scroll-smooth ${(isTransitioning || isSettling) ? 'overflow-y-hidden' : 'overflow-y-auto'}`}
+        style={{ overscrollBehavior: 'none' }}
+      >
 
         {/* Pour animation — permanently mounted, now inside main so it shares the stacking context */}
         <div
@@ -654,12 +798,13 @@ export default function App() {
           }}
         >
           <div
-            className="absolute inset-x-0 bottom-0 top-[-2px]"
+            className="absolute inset-x-0 bottom-0 top-[-3px]"
             style={{
               backgroundColor: fillColor || 'transparent',
               transform: pourTransform,
               transition: isPouring ? 'transform 1.4s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
               willChange: 'transform',
+              boxShadow: fillColor ? `0 -1px 0 ${fillColor}` : 'none',
             }}
           >
             {/* Pour wave — shares the pour body's color (the new accent), NOT cream.
@@ -730,10 +875,9 @@ export default function App() {
                   flushSync(() => setShowSearchBar(true));
                   searchInputRef.current?.focus();
                 }}
-                className="w-[56px] h-[56px] rounded-full active:scale-95 transition-all flex items-center justify-center duration-1000 liquid-glass"
-                style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}
+                className="w-[56px] h-[56px] rounded-full active:scale-95 transition-all flex items-center justify-center duration-1000 liquid-glass-subtle"
               >
-                <Search size={22} strokeWidth={2.5} style={{ color: accentColor }} className="transition-colors duration-1000" />
+                <Search size={22} strokeWidth={2.5} className="text-zinc-500 transition-colors duration-1000" />
               </button>
             </div>
             {/* Inline search bar — appears in place instead of a modal so users
@@ -748,7 +892,6 @@ export default function App() {
                 {showSearchBar ? (
                   <div
                     className="relative flex items-center rounded-[16px] liquid-glass-subtle"
-                    style={{ backgroundColor: hexToRgba(accentColor, 0.12) }}
                   >
                     <Search size={18} className="absolute left-3.5 z-10 text-zinc-500 pointer-events-none" strokeWidth={2.5} />
                     <input
@@ -783,63 +926,52 @@ export default function App() {
                         setShowSearchBar(false);
                         setSearchQuery("");
                       }}
-                      className="absolute right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center active:scale-[0.88] liquid-glass"
-                      style={{ backgroundColor: hexToRgba(accentColor, 0.25), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}
-                    ><X size={14} /></button>
+                      className="absolute right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center active:scale-[0.88] liquid-glass-subtle"
+                    ><X size={14} className="text-zinc-600" /></button>
                   </div>
                 ) : (
                   <div
                     className="flex items-center"
                     style={{
                       animation: searchChipClosing
-                        ? 'search-chip-out 280ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
-                        : 'search-chip-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both',
+                        ? 'search-chip-out 320ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
+                        : 'search-chip-in 380ms cubic-bezier(0.23, 1, 0.32, 1) both',
                     }}
                   >
-                    <div
-                      className="flex items-center gap-2 max-w-full px-3 py-1.5 rounded-[14px] border text-[13px] font-semibold text-zinc-900/90"
-                      style={{
-                        background: `linear-gradient(180deg, ${hexToRgba(accentColor, 0.18)} 0%, rgba(255,255,255,0.22) 100%)`,
-                        borderColor: 'rgba(255,255,255,0.58)',
-                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.72), 0 6px 14px rgba(120,80,20,0.08)',
-                        backdropFilter: 'blur(10px) saturate(1.15)',
-                        WebkitBackdropFilter: 'blur(10px) saturate(1.15)'
-                      }}
-                    >
+                    <div className="flex items-center gap-2 max-w-full px-3.5 py-2 rounded-[16px] text-[13px] font-black text-zinc-900 liquid-glass-subtle">
                       <span className="truncate">{activeSearchTerm}</span>
                       <button
                         type="button"
                         aria-label="Сбросить найденный запрос"
                         onClick={() => {
                           setSearchChipClosing(true);
+                          clearSearch({ keepOpen: false, delay: 220 });
                           setTimeout(() => {
                             setSearchChipClosing(false);
-                            clearSearch({ keepOpen: false });
-                          }, 170);
+                          }, 320);
                         }}
-                        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 active:scale-[0.88] liquid-glass"
-                        style={{ backgroundColor: hexToRgba(accentColor, 0.18) }}
+                        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 active:scale-[0.88] liquid-glass-subtle"
                       >
-                        <X size={11} />
+                        <X size={11} className="text-zinc-600" />
                       </button>
                     </div>
                   </div>
                 )}
               </div>
             )}
-            <div className="flex gap-2 mt-4 relative z-[50]">
-              <button onClick={() => setShowOriginSheet(true)} className="flex-1 flex items-center justify-between p-3.5 rounded-[16px] active:scale-[0.98] transition-all liquid-glass-subtle">
-                <div className="flex flex-col items-start w-full pr-2">
+            <div className="flex gap-2 mt-5 relative z-[50] min-w-0">
+              <button onClick={() => setShowOriginSheet(true)} className="flex-1 min-w-0 flex items-center justify-between p-3.5 rounded-[16px] active:scale-[0.98] transition-all overflow-hidden liquid-glass-subtle">
+                <div className="flex flex-col items-start w-full min-w-0 pr-2">
                   <span className="text-[9px] font-bold uppercase tracking-widest mb-0.5 text-zinc-500">Коллекция</span>
                   <span className="text-[13px] font-black truncate text-zinc-900">{activeOrigin?.name || 'Не выбрана'}</span>
                 </div>
                 <ChevronDown size={16} className="text-zinc-500 shrink-0" />
               </button>
               <button onClick={() => !isStyleFilterDisabled && setShowCategorySheet(true)}
-                className={`flex-1 flex items-center justify-between p-3.5 rounded-[16px] transition-all liquid-glass-subtle ${isStyleFilterDisabled ? 'opacity-50' : 'active:scale-[0.98]'}`}>
-                <div className="flex flex-col items-start w-full pr-2">
+                className={`flex-1 min-w-0 flex items-center justify-between p-3.5 rounded-[16px] transition-all overflow-hidden liquid-glass-subtle ${isStyleFilterDisabled ? 'opacity-50' : 'active:scale-[0.98]'}`}>
+                <div className="flex flex-col items-start w-full min-w-0 pr-2">
                   <span className="text-[9px] font-bold uppercase tracking-widest mb-0.5 text-zinc-500">Стиль</span>
-                  <span className="text-[13px] font-black truncate text-zinc-900">{isStyleFilterDisabled ? '-' : activeCategory.name}</span>
+                  <span className="text-[13px] font-black truncate text-zinc-900">{isStyleFilterDisabled ? '-' : formatStyleGroupName(activeCategory.name)}</span>
                 </div>
                 {!isStyleFilterDisabled && <ChevronDown size={16} className="text-zinc-500 shrink-0" />}
               </button>
@@ -852,9 +984,9 @@ export default function App() {
                     onClick={() => startTransition(() => setSortConfig(prev => prev.key === s.id ? { key: s.id, direction: prev.direction === 'desc' ? 'asc' : prev.direction === 'asc' ? null : 'desc' } : { key: s.id, direction: 'desc' }))}
                     className="relative flex flex-col items-center justify-center h-[34px] rounded-full text-[10px] font-black tracking-wide liquid-glass-subtle text-zinc-900 overflow-hidden"
                     style={{
-                      transition: 'background-color 700ms ease, border-color 700ms ease',
-                      backgroundColor: isActive ? hexToRgba(accentColor, 0.28) : undefined,
-                      border: isActive ? `1px solid ${hexToRgba(accentColor, 0.5)}` : undefined,
+                      transition: 'background-color 760ms cubic-bezier(0.23, 1, 0.32, 1), border-color 760ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 760ms cubic-bezier(0.23, 1, 0.32, 1)',
+                      backgroundColor: isActive ? hexToRgba(accentColor, 0.18) : 'rgba(255,255,255,0.08)',
+                      border: isActive ? `1px solid ${hexToRgba(accentColor, 0.34)}` : '1px solid rgba(255,255,255,0.36)',
                     }}>
                     <span className="leading-none">{s.label}</span>
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none" className="mt-[2px]" style={{
@@ -875,7 +1007,7 @@ export default function App() {
               "crests" rising up into the foam and seamlessly joining main content below.
               bottom-[-1px] gives a 1px sub-pixel overlap with the main bg area to
               eliminate any rendering seam — harmless because the colors match. */}
-          <HeaderWave className="absolute bottom-[-1px] left-0 z-[25]" fill={displayBgColor} />
+          <HeaderWave className="absolute bottom-[-2px] left-0 z-[25]" fill={displayBgColor} />
         </header>
         <div className="px-4 pt-4 pb-[120px] relative z-[30]">
           {activeOrigin && (
@@ -934,8 +1066,10 @@ export default function App() {
 
       {showStory && (
         <div className="fixed inset-0 z-[500] bg-zinc-950 flex flex-col text-white" style={{ animation: 'fade-in 200ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
-          <button type="button" aria-label="Закрыть историю" onClick={() => setShowStory(false)} className="absolute top-8 right-4 z-20 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center active:scale-90 border border-white/20"><X size={20} /></button>
-          <div className="flex-1 flex flex-col items-center justify-center p-6" style={{ background: `linear-gradient(to bottom, ${hexToRgba(accentColor, 0.2)}, #000000)` }}>
+          <div className="shrink-0 px-4 pb-3 flex justify-end relative z-20" style={storyHeaderRowStyle}>
+            <button type="button" aria-label="Закрыть историю" onClick={() => setShowStory(false)} className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center active:scale-90 border border-white/20"><X size={20} /></button>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-6 pt-0" style={{ background: `linear-gradient(to bottom, ${hexToRgba(accentColor, 0.2)}, #000000)` }}>
             <Flame size={80} className="mb-6 animate-pulse" style={{ color: accentColor, filter: `drop-shadow(0 0 30px ${hexToRgba(accentColor, 0.6)})` }} />
             <div className="font-logo text-4xl text-center mb-4 leading-[1.1] flex flex-col items-center"><span>ПРАЙМ</span><span>БИР</span></div>
             <p className="text-center text-[15px] font-bold mb-10 text-white/70 max-w-[280px]">Откройте для себя новые вкусы с нашими специальными предложениями на кране.</p>
@@ -962,7 +1096,7 @@ export default function App() {
               {/* Handle removed */}
               <div className="flex justify-between items-center mb-6 px-1 shrink-0 relative z-[5]">
                 <h2 className="font-display text-[26px] font-black tracking-[-0.02em]">Ваш заказ</h2>
-                <button type="button" aria-label="Закрыть корзину" onClick={() => closeSheet('cart', setShowCart)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><X size={20} /></button>
+                <button type="button" aria-label="Закрыть корзину" onClick={() => closeSheet('cart', setShowCart)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15), ...inlineCloseButtonStyle }}><X size={20} /></button>
               </div>
               <div className="flex-1 overflow-y-auto no-scrollbar pb-[180px] px-1 relative z-[5]">
                 <div className="flex flex-col gap-3">
@@ -1028,7 +1162,10 @@ export default function App() {
               <div className="relative flex-1 flex flex-col overflow-hidden foam-bg" style={{ animation: 'none' }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${hexToRgba(itemColor, 0.85)} 0%, ${hexToRgba(itemColor, 0.5)} 30%, ${hexToRgba(itemColor, 0.15)} 60%, transparent 85%)` }} />
                 <FoamBubblesCanvas />
-                <button type="button" aria-label="Закрыть карточку товара" onClick={closeDetail} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} style={{ color: itemColor }} /></button>
+                <div className="flex justify-between items-center px-6 pt-4 pb-2 shrink-0 relative z-[5]">
+                  <div className="w-10 h-10 shrink-0 opacity-0 pointer-events-none" aria-hidden="true" />
+                  <button type="button" aria-label="Закрыть карточку товара" onClick={closeDetail} className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 liquid-glass shrink-0" style={{ backgroundColor: hexToRgba(itemColor, 0.15), ...inlineCloseButtonStyle }}><X size={20} style={{ color: itemColor }} /></button>
+                </div>
                 <div className="overflow-y-auto no-scrollbar flex-1 pb-32 relative z-[5]">
                   {/* Swipe indicator removed */}
                   {/* Full-width image */}
@@ -1094,9 +1231,9 @@ export default function App() {
                             {selectedItem.origin === 'archive' ? 'ЗАКОНЧИЛОСЬ' : 'СКОРО'}
                           </div>
                         ) : selectedItemQty === 0 ? (
-                          <button onClick={() => updateCart(null, selectedItem, 1)} className="py-4 px-10 rounded-[20px] font-black text-[14px] active:scale-[0.96] liquid-glass" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.15), transition: 'transform 180ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease', animation: 'plus-fade 520ms cubic-bezier(0.23, 1, 0.32, 1)' }}>В КОРЗИНУ</button>
+                          <button onClick={() => updateCart(null, selectedItem, 1)} className="py-4 px-10 rounded-[20px] font-black text-[14px] active:scale-[0.96] liquid-glass" style={{ color: itemContrast, backgroundColor: hexToRgba(itemColor, 0.15), transition: 'transform 180ms cubic-bezier(0.23, 1, 0.32, 1), background-color 620ms ease', animation: 'plus-fade 220ms cubic-bezier(0.23, 1, 0.32, 1)' }}>В КОРЗИНУ</button>
                         ) : (
-                          <div className="flex items-center gap-4 rounded-full p-1 liquid-glass" style={{ backgroundColor: hexToRgba(itemColor, 0.15), animation: 'qty-pop 720ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
+                          <div className="flex items-center gap-4 rounded-full p-1 liquid-glass" style={{ backgroundColor: hexToRgba(itemColor, 0.15), animation: 'qty-pop 240ms cubic-bezier(0.23, 1, 0.32, 1)' }}>
                             <button onClick={() => updateCart(null, selectedItem, -1)} className="w-12 h-12 rounded-full flex items-center justify-center active:scale-[0.9]" style={{ backgroundColor: hexToRgba(itemColor, 0.2), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}><Minus size={18} style={{ color: itemContrast }} /></button>
                             <span className="text-[18px] font-black w-6 text-center tabular-nums" style={{ color: itemContrast }}>{selectedItemQty}</span>
                             <button onClick={() => updateCart(null, selectedItem, 1)} className="w-12 h-12 rounded-full flex items-center justify-center active:scale-[0.9]" style={{ backgroundColor: hexToRgba(itemColor, 0.3), transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 1000ms ease' }}>
@@ -1128,8 +1265,10 @@ export default function App() {
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
               <FoamBubblesCanvas />
-              <button type="button" aria-label="Закрыть выбор коллекции" onClick={() => closeSheet('origin', setShowOriginSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
-              <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Коллекция</h3>
+              <div className="flex justify-between items-center mb-4 px-1 shrink-0 relative z-[5]" style={sheetHeaderRowStyle}>
+                <h3 className="font-display text-[26px] font-black tracking-[-0.02em]">Коллекция</h3>
+                <button type="button" aria-label="Закрыть выбор коллекции" onClick={() => closeSheet('origin', setShowOriginSheet)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><X size={20} className="text-zinc-600" /></button>
+              </div>
               <div className="relative z-[5]">
                 {/* "Всё" — big solid full-width button */}
                 {(() => {
@@ -1200,8 +1339,10 @@ export default function App() {
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
               <FoamBubblesCanvas />
-              <button type="button" aria-label="Закрыть выбор стиля" onClick={() => closeSheet('category', setShowCategorySheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
-              <h3 className="font-display text-[26px] font-black tracking-[-0.02em] mb-4 px-1 relative z-[5]">Стиль</h3>
+              <div className="flex justify-between items-center mb-4 px-1 shrink-0 relative z-[5]" style={sheetHeaderRowStyle}>
+                <h3 className="font-display text-[26px] font-black tracking-[-0.02em]">Стиль</h3>
+                <button type="button" aria-label="Закрыть выбор стиля" onClick={() => closeSheet('category', setShowCategorySheet)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><X size={20} className="text-zinc-600" /></button>
+              </div>
               <div className="grid grid-cols-2 gap-2.5 relative z-[5] auto-rows-fr">
                 {/* Любой стиль — static color like other groups */}
                 <button onClick={() => handleFilterChange(setShowCategorySheet, () => setActiveCategory(ALL_CATEGORIES[0]))}
@@ -1223,7 +1364,7 @@ export default function App() {
                       style={groupActive ? { backgroundColor: hexToRgba(group.color, 0.35), border: `1px solid ${hexToRgba(group.color, 0.5)}` } : { backgroundColor: hexToRgba(targetAccentColor, 0.15) }}>
                       <div className="w-5 h-5 rounded-full shrink-0 shadow-sm border border-black/10" style={{ backgroundColor: group.color }} />
                       <div className="flex-1 min-w-0">
-                        <span className={`font-black text-[11px] block truncate ${groupActive ? 'text-zinc-900' : 'text-zinc-600'}`}>{group.group}</span>
+                        <span className={`font-black text-[11px] block truncate ${groupActive ? 'text-zinc-900' : 'text-zinc-600'}`}>{formatStyleGroupName(group.group)}</span>
                         <span className={`text-[9px] font-medium block mt-0.5 line-clamp-2 ${groupActive ? 'text-zinc-900/60' : 'text-zinc-600/60'}`}>{group.items.map(c => c.name).join(' / ')}</span>
                       </div>
                     </button>
@@ -1249,13 +1390,14 @@ export default function App() {
                 maskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)'
               }} />
               <FoamBubblesCanvas />
-              <button type="button" aria-label="Закрыть выбор адреса" onClick={() => closeSheet('location', setShowLocationSheet)} className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center z-20 active:scale-90 liquid-glass"><X size={20} className="text-zinc-600" /></button>
-              
-              <div className="flex items-center gap-3 mb-6 relative z-[5]">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.25), borderColor: hexToRgba(targetAccentColor, 0.4), transition: 'background-color 1000ms ease, border-color 1000ms ease' }}>
-                  <MapPin size={20} strokeWidth={2.5} style={{ color: targetAccentColor, transition: 'color 1000ms ease' }} />
+              <div className="flex justify-between items-center gap-4 mb-6 relative z-[5]" style={sheetHeaderRowStyle}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center liquid-glass shrink-0" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.25), borderColor: hexToRgba(targetAccentColor, 0.4), transition: 'background-color 1000ms ease, border-color 1000ms ease' }}>
+                    <MapPin size={20} strokeWidth={2.5} style={{ color: targetAccentColor, transition: 'color 1000ms ease' }} />
+                  </div>
+                  <h3 className="font-display text-[26px] font-black tracking-[-0.02em]">Локация</h3>
                 </div>
-                <h3 className="font-display text-[26px] font-black tracking-[-0.02em]">Локация</h3>
+                <button type="button" aria-label="Закрыть выбор адреса" onClick={() => closeSheet('location', setShowLocationSheet)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 active:scale-90 liquid-glass shrink-0" style={{ backgroundColor: hexToRgba(targetAccentColor, 0.15) }}><X size={20} className="text-zinc-600" /></button>
               </div>
               
               <div className="flex flex-col gap-3 relative z-[5]">
@@ -1275,4 +1417,3 @@ export default function App() {
     </div>
   );
 }
-
