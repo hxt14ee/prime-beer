@@ -1035,9 +1035,16 @@ export default function App() {
         type="button"
         onClick={scrollToTop}
         aria-label="Наверх"
-        className="fixed right-4 z-[55] w-12 h-12 rounded-full flex items-center justify-center liquid-glass active:scale-[0.92]"
+        className="fixed z-[55] w-12 h-12 rounded-full flex items-center justify-center liquid-glass active:scale-[0.92]"
         style={{
-          bottom: `calc(var(--safe-bottom) + ${cartTotalItems > 0 ? 104 : 24}px)`,
+          // .liquid-glass sets position:relative globally; force fixed for FAB.
+          position: 'fixed',
+          // Keep the FAB reliably in the visible right corner across WebViews.
+          // Avoid CSS custom props/functions here because unsupported values can
+          // invalidate "right" entirely and place the button off-screen.
+          right: 16,
+          left: 'auto',
+          bottom: `calc(var(--safe-bottom, 0px) + ${cartTotalItems > 0 ? 104 : 24}px)`,
           backgroundColor: hexToRgba(accentColor, 0.22),
           opacity: showScrollTop ? 1 : 0,
           transform: showScrollTop ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.92)',
