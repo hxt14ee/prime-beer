@@ -7,18 +7,32 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:mobile:functional": "playwright test tests/e2e",
+    "test:mobile:design": "playwright test tests/design",
+    "test:mobile:a11y": "playwright test tests/a11y",
+    "test:mobile:perf": "lhci autorun --config=.lighthouserc.mobile.json",
+    "test:mobile:full": "cross-env MOBILE_TEST_SCOPE=full playwright test tests",
+    "ci:orchestrator": "node scripts/ci/orchestrator-lead.mjs",
+    "ci:device-matrix": "node scripts/ci/device-matrix-agent.mjs",
+    "ci:real-device": "node scripts/ci/real-device-agent.mjs",
+    "ci:fix-agent": "node scripts/ci/fix-agent.mjs",
+    "ci:release-judge": "node scripts/ci/release-judge.mjs"
   },
   "dependencies": {
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@eslint/js": "^9.39.4",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/vite": "^4.2.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",

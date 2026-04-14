@@ -11,6 +11,7 @@ import { getContrastYIQ, hexToRgba } from './utils/ui.js';
 const INITIAL_VISIBLE_ITEMS = 24;
 const VISIBLE_BATCH_SIZE = 20;
 const LOAD_MORE_THRESHOLD = 720;
+const SEARCH_CHIP_CLOSE_MS = 460;
 // =======================
 // 6. ОСНОВНОЙ КОМПОНЕНТ
 // =======================
@@ -522,17 +523,19 @@ export default function App() {
         }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes search-chip-in {
-          0%   { opacity: 0; transform: translateY(-3px) scale(0.988); filter: blur(1.5px); }
-          70%  { opacity: 1; transform: translateY(0) scale(1.003); filter: blur(0); }
+          0%   { opacity: 0; transform: translateY(-5px) scale(0.982); filter: blur(1.6px); }
+          100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+        }
+        @keyframes search-chip-in-soft {
+          0%   { opacity: 0; transform: translateY(-4px) scale(0.988); filter: blur(1.2px); }
           100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
         @keyframes search-chip-out {
           0%   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-          100% { opacity: 0; transform: translateY(-1px) scale(0.99); filter: blur(1.2px); }
+          100% { opacity: 0; transform: translateY(-6px) scale(0.97); filter: blur(2.5px); }
         }
         @keyframes search-bar-in {
-          0%   { opacity: 0; transform: translateY(-10px) scale(0.985); filter: blur(8px); }
-          55%  { opacity: 1; transform: translateY(1px) scale(1.004); filter: blur(0); }
+          0%   { opacity: 0; transform: translateY(-4px) scale(0.99); filter: blur(2px); }
           100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
         /* Age gate exit: backdrop fades + gently blurs out, card zooms up and away
@@ -877,7 +880,7 @@ export default function App() {
                 }}
                 className="w-[56px] h-[56px] rounded-full active:scale-95 transition-all flex items-center justify-center duration-1000 liquid-glass-subtle"
               >
-                <Search size={22} strokeWidth={2.5} className="text-zinc-500 transition-colors duration-1000" />
+                <Search size={22} strokeWidth={2.5} style={{ color: accentColor, transition: 'color 1000ms ease' }} />
               </button>
             </div>
             {/* Inline search bar — appears in place instead of a modal so users
@@ -887,7 +890,11 @@ export default function App() {
             {(showSearchBar || activeSearchTerm) && (
               <div
                 className="mt-3 relative z-[50]"
-                style={{ animation: 'search-bar-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both' }}
+                style={{
+                  animation: showSearchBar
+                    ? 'search-bar-in 620ms cubic-bezier(0.23, 1, 0.32, 1) both'
+                    : undefined,
+                }}
               >
                 {showSearchBar ? (
                   <div
@@ -934,8 +941,8 @@ export default function App() {
                     className="flex items-center"
                     style={{
                       animation: searchChipClosing
-                        ? 'search-chip-out 320ms cubic-bezier(0.32, 0, 0.67, 0) forwards'
-                        : 'search-chip-in 380ms cubic-bezier(0.23, 1, 0.32, 1) both',
+                        ? `search-chip-out ${SEARCH_CHIP_CLOSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
+                        : 'search-chip-in-soft 720ms cubic-bezier(0.22, 1, 0.36, 1) both',
                     }}
                   >
                     <div className="flex items-center gap-2 max-w-full px-3.5 py-2 rounded-[16px] text-[13px] font-black text-zinc-900 liquid-glass-subtle">
@@ -945,10 +952,10 @@ export default function App() {
                         aria-label="Сбросить найденный запрос"
                         onClick={() => {
                           setSearchChipClosing(true);
-                          clearSearch({ keepOpen: false, delay: 220 });
+                          clearSearch({ keepOpen: false, delay: SEARCH_CHIP_CLOSE_MS });
                           setTimeout(() => {
                             setSearchChipClosing(false);
-                          }, 320);
+                          }, SEARCH_CHIP_CLOSE_MS + 40);
                         }}
                         className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 active:scale-[0.88] liquid-glass-subtle"
                       >

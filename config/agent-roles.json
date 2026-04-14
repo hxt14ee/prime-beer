@@ -1,0 +1,58 @@
+{
+  "roles": [
+    {
+      "name": "Orchestrator (Lead)",
+      "agentType": "default",
+      "responsibility": "Запускает пайплайн и сводит общий вердикт",
+      "releaseBlocking": true
+    },
+    {
+      "name": "Device Matrix Agent",
+      "agentType": "explorer",
+      "responsibility": "Обновляет и валидирует матрицу девайсов/браузеров",
+      "releaseBlocking": false
+    },
+    {
+      "name": "Functional QA Agent",
+      "agentType": "worker",
+      "responsibility": "E2E и регресс на матрице (Playwright)",
+      "releaseBlocking": true
+    },
+    {
+      "name": "Real Device Agent",
+      "agentType": "worker",
+      "responsibility": "Прогон на реальных iOS/Android девайсах",
+      "releaseBlocking": true
+    },
+    {
+      "name": "Design Review Agent",
+      "agentType": "explorer+worker",
+      "responsibility": "Визуальные дифы, safe-area, типографика, кликабельность",
+      "releaseBlocking": true
+    },
+    {
+      "name": "Performance Agent",
+      "agentType": "worker",
+      "responsibility": "Lighthouse CI и бюджеты CWV",
+      "releaseBlocking": true
+    },
+    {
+      "name": "Accessibility Agent",
+      "agentType": "worker",
+      "responsibility": "WCAG 2.2 AA проверки",
+      "releaseBlocking": true
+    },
+    {
+      "name": "Fix Agent",
+      "agentType": "worker",
+      "responsibility": "Готовит план исправлений по упавшим гейтам",
+      "releaseBlocking": false
+    },
+    {
+      "name": "Release Judge Agent",
+      "agentType": "explorer",
+      "responsibility": "Финальный авто-вердикт ACCEPT/REJECT",
+      "releaseBlocking": true
+    }
+  ]
+}

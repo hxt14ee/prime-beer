@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-04-14",
+  "marketBaseline": {
+    "region": "US",
+    "month": "2026-03",
+    "mobileOs": {
+      "ios": 63.03,
+      "android": 36.77
+    },
+    "mobileBrowsers": {
+      "safari": 54.75,
+      "chrome": 37.64
+    },
+    "topResolutions": [
+      "414x896",
+      "390x844",
+      "393x852",
+      "384x832",
+      "402x874"
+    ]
+  },
+  "tiers": {
+    "tierA": [
+      {
+        "id": "ios-safari-main",
+        "playwrightDevice": "iPhone 13",
+        "browserEngine": "webkit",
+        "role": "iOS Safari regular"
+      },
+      {
+        "id": "ios-safari-plus",
+        "playwrightDevice": "iPhone 13 Pro Max",
+        "browserEngine": "webkit",
+        "role": "iOS Safari large"
+      },
+      {
+        "id": "android-chrome-pixel",
+        "playwrightDevice": "Pixel 7",
+        "browserEngine": "chromium",
+        "role": "Android Chrome flagship"
+      },
+      {
+        "id": "android-chrome-samsung",
+        "playwrightDevice": "Galaxy S9+",
+        "browserEngine": "chromium",
+        "role": "Android Chrome Samsung"
+      }
+    ],
+    "tierB": [
+      {
+        "id": "ios-safari-compact",
+        "playwrightDevice": "iPhone SE",
+        "browserEngine": "webkit",
+        "role": "iOS Safari compact"
+      },
+      {
+        "id": "android-chrome-mid",
+        "playwrightDevice": "Pixel 5",
+        "browserEngine": "chromium",
+        "role": "Android Chrome mid-range"
+      }
+    ]
+  },
+  "releaseGates": {
+    "coreWebVitals": {
+      "lcpMs": 2500,
+      "inpMs": 200,
+      "cls": 0.1
+    },
+    "minimumTapTargetPx": 44,
+    "maxHorizontalOverflowPx": 1
+  }
+}

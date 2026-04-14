@@ -1,16 +1,35 @@
-# React + Vite
+# Prime Beer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Telegram mini-app catalog built with React + Vite.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. `npm ci`
+2. `npm run dev`
+3. Open `http://127.0.0.1:5173/`
 
-## React Compiler
+## Quality Gate For Modern Smartphones
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Automated mobile adaptation and optimization pipeline is configured for:
 
-## Expanding the ESLint configuration
+1. Functional regression on Tier-A mobile device classes
+2. Design guard checks (safe area, right-corner FAB, viewport containment)
+3. Accessibility critical checks (axe)
+4. Lighthouse performance gate with Core Web Vitals thresholds
+5. Final accept/reject verdict by release judge
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+See full process in [docs/mobile-quality-gate.md](docs/mobile-quality-gate.md).
+
+## CI Agent Orchestration
+
+PR workflow: `.github/workflows/mobile-quality-gate.yml`
+
+1. Orchestrator (Lead)
+2. Device Matrix Agent
+3. Functional QA Agent
+4. Real Device Agent
+5. Design Review Agent
+6. Performance Agent
+7. Accessibility Agent
+8. Fix Agent
+9. Release Judge Agent

@@ -1,0 +1,228 @@
+name: Mobile Quality Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  orchestrator-lead:
+    name: Orchestrator (Lead)
+    runs-on: ubuntu-latest
+    outputs:
+      require_real_device_gate: ${{ steps.orchestrator.outputs.require_real_device_gate }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: orchestrator
+        run: npm run ci:orchestrator
+        env:
+          REQUIRE_REAL_DEVICE_GATE: ${{ vars.REQUIRE_REAL_DEVICE_GATE || 'false' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orchestrator-artifacts
+          path: artifacts/agent
+          if-no-files-found: ignore
+
+  device-matrix-agent:
+    name: Device Matrix Agent
+    runs-on: ubuntu-latest
+    needs: orchestrator-lead
+    outputs:
+      device_matrix_result: ${{ steps.matrix.outputs.device_matrix_result }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: matrix
+        run: npm run ci:device-matrix
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-matrix-artifacts
+          path: artifacts/agent
+          if-no-files-found: ignore
+
+  functional-qa-agent:
+    name: Functional QA Agent
+    runs-on: ubuntu-latest
+    needs: orchestrator-lead
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:mobile:functional
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: functional-qa-artifacts
+          path: artifacts
+          if-no-files-found: ignore
+
+  real-device-agent:
+    name: Real Device Agent
+    runs-on: ubuntu-latest
+    needs: orchestrator-lead
+    outputs:
+      real_device_result: ${{ steps.real.outputs.real_device_result }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: real
+        run: npm run ci:real-device
+        env:
+          REQUIRE_REAL_DEVICE_GATE: ${{ needs.orchestrator-lead.outputs.require_real_device_gate }}
+          REAL_DEVICE_PROVIDER: ${{ vars.REAL_DEVICE_PROVIDER || 'none' }}
+          REAL_DEVICE_COMMAND: ${{ vars.REAL_DEVICE_COMMAND || '' }}
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-device-artifacts
+          path: artifacts/agent
+          if-no-files-found: ignore
+
+  design-review-agent:
+    name: Design Review Agent
+    runs-on: ubuntu-latest
+    needs: orchestrator-lead
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:mobile:design
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-review-artifacts
+          path: artifacts
+          if-no-files-found: ignore
+
+  performance-agent:
+    name: Performance Agent
+    runs-on: ubuntu-latest
+    needs: orchestrator-lead
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:mobile:perf
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-artifacts
+          path: |
+            .lighthouseci
+            artifacts
+          if-no-files-found: ignore
+
+  accessibility-agent:
+    name: Accessibility Agent
+    runs-on: ubuntu-latest
+    needs: orchestrator-lead
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:mobile:a11y
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-review-artifacts
+          path: artifacts
+          if-no-files-found: ignore
+
+  fix-agent:
+    name: Fix Agent
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - functional-qa-agent
+      - real-device-agent
+      - design-review-agent
+      - performance-agent
+      - accessibility-agent
+    outputs:
+      fix_agent_result: ${{ steps.fix.outputs.fix_agent_result }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: fix
+        run: npm run ci:fix-agent
+        env:
+          FUNCTIONAL_RESULT: ${{ needs.functional-qa-agent.result }}
+          REAL_DEVICE_RESULT: ${{ needs.real-device-agent.outputs.real_device_result || needs.real-device-agent.result }}
+          DESIGN_RESULT: ${{ needs.design-review-agent.result }}
+          PERFORMANCE_RESULT: ${{ needs.performance-agent.result }}
+          A11Y_RESULT: ${{ needs.accessibility-agent.result }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fix-agent-artifacts
+          path: artifacts/agent
+          if-no-files-found: ignore
+
+  release-judge-agent:
+    name: Release Judge Agent
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - orchestrator-lead
+      - device-matrix-agent
+      - functional-qa-agent
+      - real-device-agent
+      - design-review-agent
+      - performance-agent
+      - accessibility-agent
+      - fix-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run ci:release-judge
+        env:
+          DEVICE_MATRIX_RESULT: ${{ needs.device-matrix-agent.outputs.device_matrix_result || needs.device-matrix-agent.result }}
+          FUNCTIONAL_RESULT: ${{ needs.functional-qa-agent.result }}
+          REAL_DEVICE_RESULT: ${{ needs.real-device-agent.outputs.real_device_result || needs.real-device-agent.result }}
+          DESIGN_RESULT: ${{ needs.design-review-agent.result }}
+          A11Y_RESULT: ${{ needs.accessibility-agent.result }}
+          PERFORMANCE_RESULT: ${{ needs.performance-agent.result }}
+          FIX_RESULT: ${{ needs.fix-agent.outputs.fix_agent_result || needs.fix-agent.result }}
+          REQUIRE_REAL_DEVICE_GATE: ${{ needs.orchestrator-lead.outputs.require_real_device_gate }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-judge-artifacts
+          path: artifacts/agent
+          if-no-files-found: ignore
