@@ -181,13 +181,6 @@ export const FoamBubblesCanvas = React.memo(function FoamBubblesCanvas() {
     if (!ctx) return;
     const parent = canvas.parentElement;
     if (!parent) return;
-    const setSize = () => {
-      canvas.width = parent.offsetWidth;
-      canvas.height = parent.offsetHeight;
-    };
-    setSize();
-    const ro = new ResizeObserver(setSize);
-    ro.observe(parent);
     const respawn = (b) => {
       b.x = Math.random() * canvas.width;
       b.y = Math.random() * canvas.height;
@@ -208,6 +201,63 @@ export const FoamBubblesCanvas = React.memo(function FoamBubblesCanvas() {
       b.life = Math.random() * b.maxLife;
       return b;
     });
+    // Draw one frame of bubbles without advancing physics (used to immediately
+    // redraw after a resize so we don't leave an empty canvas between the
+    // resize callback and the next rAF tick).
+    const drawBubbles = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      bubbles.forEach(b => {
+        if (b.popping) {
+          const popProgress = b.popFrame / 12;
+          const popSize = b.maxSize * (1 + popProgress * 0.6);
+          const popOpacity = b.opacity * (1 - popProgress);
+          ctx.strokeStyle = `rgba(140, 100, 50, ${popOpacity * 0.7})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, popSize, 0, Math.PI * 2);
+          ctx.stroke();
+          return;
+        }
+        const fadeIn = Math.min(b.life / 30, 1);
+        const fadeOut = Math.min((b.maxLife - b.life) / 30, 1);
+        const alpha = b.opacity * fadeIn * fadeOut;
+        ctx.strokeStyle = `rgba(140, 100, 50, ${alpha * 0.7})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    };
+    // Size strategy: oversize the canvas bitmap at mount with a 200px vertical
+    // buffer, then NEVER resize on parent changes. This is the cheapest and
+    // cleanest approach — no frame-by-frame bitmap clears, no double-buffer
+    // copies, no layout thrashing. The parent's overflow:hidden clips the
+    // canvas visually, so as the parent grows (search bar opens) more of the
+    // already-rendered canvas simply becomes visible.
+    //
+    // Density: bubbles spawn across the full canvas height, which includes the
+    // buffer area below the parent. As parent grows, the previously-hidden
+    // buffer zone becomes visible and shows its bubbles — no sparse area, no
+    // hitches. The only thing we respond to is window resize (orientation),
+    // which rarely happens and is fine to trigger a full reset.
+    const applySize = () => {
+      const w = parent.offsetWidth;
+      // 200px buffer covers the search-bar opening (+60px) and leaves headroom
+      // for any other future parent growth without needing to resize.
+      const h = parent.offsetHeight + 200;
+      if (canvas.width === w && canvas.height === h) return;
+      canvas.width = w;
+      canvas.height = h;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      drawBubbles();
+    };
+    applySize();
+    // React only to window-level size changes — orientation, actual viewport
+    // resize. Parent height fluctuations during animations are handled by
+    // overflow:hidden on the parent.
+    const onWindowResize = () => applySize();
+    window.addEventListener('resize', onWindowResize);
     let animationId;
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -243,9 +293,16 @@ export const FoamBubblesCanvas = React.memo(function FoamBubblesCanvas() {
       animationId = requestAnimationFrame(animate);
     };
     animate();
-    return () => { ro.disconnect(); cancelAnimationFrame(animationId); };
+    return () => {
+      window.removeEventListener('resize', onWindowResize);
+      cancelAnimationFrame(animationId);
+    };
   }, []);
-  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-[1] opacity-80" />;
+  // Use explicit top/left instead of inset-0 — the canvas's CSS size is now
+  // managed directly via canvas.style.width/height in setSize(). This prevents
+  // CSS from auto-stretching the bitmap during parent resize (the stretching
+  // you saw when opening the search bar).
+  return <canvas ref={canvasRef} className="absolute top-0 left-0 pointer-events-none z-[1] opacity-80" />;
 });
 
 // =======================

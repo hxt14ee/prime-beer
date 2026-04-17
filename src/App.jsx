@@ -534,10 +534,9 @@ export default function App() {
           0%   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
           100% { opacity: 0; transform: translateY(-6px) scale(0.97); filter: blur(2.5px); }
         }
-        @keyframes search-bar-in {
-          0%   { opacity: 0; transform: translateY(-4px) scale(0.99); filter: blur(2px); }
-          100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-        }
+        /* search-bar-in keyframe removed — replaced by smoother grid-template-rows
+           transition on the container itself (supports symmetric open+close,
+           no blur filter, shorter 220ms duration). */
         /* Age gate exit: backdrop fades + gently blurs out, card zooms up and away
            on top of it — layered exit so the user feels a real "stepping through"
            transition instead of an abrupt unmount. */
@@ -590,6 +589,11 @@ export default function App() {
         *::-webkit-scrollbar { display: none; }
         * { scrollbar-width: none; }
         .foam-bg {
+          /* Background bubbles are tiled at a fixed pixel size so they stay
+             locked to absolute positions regardless of container height.
+             Previously the percentage-positioned gradients (e.g. "at 20% 30%")
+             reflowed every frame the parent resized — that's what looked like
+             bubbles "stretching" during the search-bar open animation. */
           background:
             radial-gradient(ellipse 8px 6px at 20% 30%, rgba(255,255,255,0.6) 0%, transparent 100%),
             radial-gradient(ellipse 5px 4px at 50% 15%, rgba(255,255,255,0.5) 0%, transparent 100%),
@@ -600,6 +604,12 @@ export default function App() {
             radial-gradient(ellipse 3px 3px at 60% 75%, rgba(255,255,255,0.5) 0%, transparent 100%),
             radial-gradient(ellipse 5px 4px at 45% 40%, rgba(255,255,255,0.4) 0%, transparent 100%),
             linear-gradient(180deg, #FFF8E7 0%, #F5E6C8 40%, #EDD9AB 100%);
+          background-size: 320px 320px, 320px 320px, 320px 320px, 320px 320px,
+                           320px 320px, 320px 320px, 320px 320px, 320px 320px,
+                           100% 100%;
+          background-repeat: repeat, repeat, repeat, repeat,
+                             repeat, repeat, repeat, repeat,
+                             no-repeat;
           animation: foam-drift 4s ease-in-out infinite;
         }
         .liquid-glass {
@@ -884,16 +894,35 @@ export default function App() {
               </button>
             </div>
             {/* Inline search bar — appears in place instead of a modal so users
-                stay in context. Slides down with a soft overshoot, auto-focused.
-                Enter submits (runs the same fade→fly-in as the brewery search),
-                X collapses. */}
-            {(showSearchBar || activeSearchTerm) && (
+                stay in context. Always mounted; height animates via the
+                grid-template-rows trick so both open AND close are smooth and
+                symmetric. Avoids the layout jump + blur filter that previously
+                caused the whole header to jitter.
+                - 220ms ease-out — fast enough to feel responsive (Emil: small UI
+                  should stay under 250ms)
+                - Opacity fades slightly faster than height so content clears out
+                  before the row fully collapses
+                - No filter:blur — GPU-expensive on mobile and unnecessary */}
+            <div
+              className="relative z-[50] grid"
+              style={{
+                gridTemplateRows: (showSearchBar || activeSearchTerm) ? '1fr' : '0fr',
+                marginTop: (showSearchBar || activeSearchTerm) ? '12px' : '0px',
+                transition:
+                  'grid-template-rows 220ms cubic-bezier(0.23, 1, 0.32, 1), ' +
+                  'margin-top 220ms cubic-bezier(0.23, 1, 0.32, 1)',
+                willChange: 'grid-template-rows',
+              }}
+            >
               <div
-                className="mt-3 relative z-[50]"
                 style={{
-                  animation: showSearchBar
-                    ? 'search-bar-in 620ms cubic-bezier(0.23, 1, 0.32, 1) both'
-                    : undefined,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  opacity: (showSearchBar || activeSearchTerm) ? 1 : 0,
+                  transform: (showSearchBar || activeSearchTerm) ? 'translateY(0)' : 'translateY(-8px)',
+                  transition:
+                    'opacity 180ms cubic-bezier(0.23, 1, 0.32, 1), ' +
+                    'transform 220ms cubic-bezier(0.23, 1, 0.32, 1)',
                 }}
               >
                 {showSearchBar ? (
@@ -965,7 +994,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-            )}
+            </div>
             <div className="flex gap-2 mt-5 relative z-[50] min-w-0">
               <button onClick={() => setShowOriginSheet(true)} className="flex-1 min-w-0 flex items-center justify-between p-3.5 rounded-[16px] active:scale-[0.98] transition-all overflow-hidden liquid-glass-subtle">
                 <div className="flex flex-col items-start w-full min-w-0 pr-2">
