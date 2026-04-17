@@ -36,8 +36,7 @@ export const BeerBubblesCanvas = React.memo(function BeerBubblesCanvas({
     const measureWave = () => {
       const header = headerRef?.current ?? document.querySelector('header');
       if (header && scrollEl) {
-        const headerRect = header.getBoundingClientRect();
-        waveMidWorld = Math.max(0, headerRect.bottom + scrollEl.scrollTop - 14);
+        waveMidWorld = Math.max(0, header.offsetHeight - 14);
       }
     };
     measureWave();
