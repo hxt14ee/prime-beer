@@ -906,23 +906,30 @@ export default function App() {
             <div
               className="relative z-[50] grid"
               style={{
+                // Height changes INSTANTLY (no transition) — this avoids layout
+                // thrashing on the main thread while the mobile keyboard is
+                // animating in. On iOS the keyboard opening causes a layout
+                // pause that was making bubbles "hang" — now we have zero
+                // layout work during that pause, so bubbles keep animating
+                // smoothly on the compositor layer. The instant height change
+                // is visually absorbed by the keyboard sliding up from below.
                 gridTemplateRows: (showSearchBar || activeSearchTerm) ? '1fr' : '0fr',
                 marginTop: (showSearchBar || activeSearchTerm) ? '12px' : '0px',
-                transition:
-                  'grid-template-rows 220ms cubic-bezier(0.23, 1, 0.32, 1), ' +
-                  'margin-top 220ms cubic-bezier(0.23, 1, 0.32, 1)',
-                willChange: 'grid-template-rows',
               }}
             >
               <div
                 style={{
                   minHeight: 0,
                   overflow: 'hidden',
+                  // Only opacity + transform animate — both GPU-only, so they
+                  // keep running smoothly even when the main thread is busy
+                  // with the keyboard opening.
                   opacity: (showSearchBar || activeSearchTerm) ? 1 : 0,
                   transform: (showSearchBar || activeSearchTerm) ? 'translateY(0)' : 'translateY(-8px)',
                   transition:
-                    'opacity 180ms cubic-bezier(0.23, 1, 0.32, 1), ' +
-                    'transform 220ms cubic-bezier(0.23, 1, 0.32, 1)',
+                    'opacity 220ms cubic-bezier(0.23, 1, 0.32, 1), ' +
+                    'transform 260ms cubic-bezier(0.23, 1, 0.32, 1)',
+                  willChange: 'transform, opacity',
                 }}
               >
                 {showSearchBar ? (
