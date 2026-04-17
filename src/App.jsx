@@ -832,7 +832,7 @@ export default function App() {
 
         <BeerBubblesCanvas headerRef={headerRef} scrollContainerRef={mainRef} />
         <header ref={headerRef} className="w-full relative" style={{ paddingTop: 'var(--safe-top)' }}>
-          <div className="foam-bg pt-4 px-4 pb-6 relative overflow-hidden z-[20]">
+          <div className="absolute inset-0 foam-bg overflow-hidden z-[20]">
             <div className="absolute inset-0 pointer-events-none" style={{
               backgroundColor: displayBgColor,
               WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 25%, rgba(0,0,0,0.1) 55%, transparent 85%)',
@@ -840,6 +840,8 @@ export default function App() {
               transition: 'background-color 500ms cubic-bezier(0.4, 0, 0.2, 1) 900ms'
             }} />
             <FoamBubblesCanvas />
+          </div>
+          <div className="pt-4 px-4 pb-6 relative z-[50]">
             <div className="flex justify-between items-center h-[70px] relative z-[50]">
               <div className="flex items-center gap-3">
                 <PrimeMark
