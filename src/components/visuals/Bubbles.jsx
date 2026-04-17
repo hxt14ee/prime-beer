@@ -102,6 +102,14 @@ export const BeerBubblesCanvas = React.memo(function BeerBubblesCanvas({
       const now = performance.now();
       ctx.clearRect(0, 0, vw, vh);
       bubbles.forEach(b => {
+        const currentSurface = surfaceAtX(b.x, now);
+        if ((!b.popping && b.worldY < currentSurface - 20) || (b.popping && b.popY < currentSurface - 20)) {
+          const nb = makeBubble('below');
+          nb.baseSize = nb.size;
+          Object.assign(b, nb);
+          return;
+        }
+
         if (b.popping) {
           b.popFrame++;
           const popDuration = 15;
@@ -134,11 +142,10 @@ export const BeerBubblesCanvas = React.memo(function BeerBubblesCanvas({
         // bubble's rising Y crosses the surface — so crests catch bubbles
         // earlier and troughs let them rise further. This makes the pop line
         // dance with the wave visually.
-        const surface = surfaceAtX(b.x, now);
-        if (b.worldY < surface) {
+        if (b.worldY < currentSurface) {
           b.popping = true;
           b.popFrame = 0;
-          b.popY = surface;
+          b.popY = currentSurface;
           return;
         }
         // Respawn bubbles that drifted out of the visible area after a big scroll jump.
