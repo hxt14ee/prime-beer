@@ -253,10 +253,20 @@ export const FoamBubblesCanvas = React.memo(function FoamBubblesCanvas() {
       drawBubbles();
     };
     applySize();
-    // React only to window-level size changes — orientation, actual viewport
-    // resize. Parent height fluctuations during animations are handled by
-    // overflow:hidden on the parent.
-    const onWindowResize = () => applySize();
+    // React only to width changes. On mobile, the keyboard opening changes
+    // window.innerHeight substantially — which would cause applySize to
+    // re-measure the parent, clear the canvas bitmap, and redraw. Even
+    // though drawBubbles redraws current positions, the clearRect creates
+    // a single-frame gap that the user perceives as a "jump" in the
+    // bubbles. Width-only changes (orientation, actual viewport resize)
+    // still trigger a resize.
+    let lastWidth = window.innerWidth;
+    const onWindowResize = () => {
+      const w = window.innerWidth;
+      if (w === lastWidth) return;
+      lastWidth = w;
+      applySize();
+    };
     window.addEventListener('resize', onWindowResize);
     let animationId;
     const animate = () => {
