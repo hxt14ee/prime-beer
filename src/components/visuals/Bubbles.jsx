@@ -100,6 +100,20 @@ export const BeerBubblesCanvas = React.memo(function BeerBubblesCanvas({
       const scrollTop = getScrollTop();
       const now = performance.now();
       ctx.clearRect(0, 0, vw, vh);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, vh);
+      const bleed = 8;
+      ctx.lineTo(0, surfaceAtX(0, now) - scrollTop - bleed);
+      for (let x = 0; x <= vw; x += 20) {
+        ctx.lineTo(x, surfaceAtX(x, now) - scrollTop - bleed);
+      }
+      ctx.lineTo(vw, surfaceAtX(vw, now) - scrollTop - bleed);
+      ctx.lineTo(vw, vh);
+      ctx.closePath();
+      ctx.clip();
+
       bubbles.forEach(b => {
         const currentSurface = surfaceAtX(b.x, now);
         if ((!b.popping && b.worldY < currentSurface - 20) || (b.popping && b.popY < currentSurface - 20)) {
@@ -162,6 +176,8 @@ export const BeerBubblesCanvas = React.memo(function BeerBubblesCanvas({
         ctx.arc(b.x, screenY, b.size, 0, Math.PI * 2);
         ctx.fill();
       });
+      ctx.restore();
+      
       animId = requestAnimationFrame(animate);
     };
     animId = requestAnimationFrame(animate);
